@@ -16,10 +16,11 @@ import ControlPanel from './components/ControlPanel';
 import IEDSettings from './components/IEDSettings';
 import HelpManual from './components/HelpManual';
 import SubstationConfig from './components/SubstationConfig';
-import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle, Globe } from 'lucide-react';
+import ODataOsascoDC from './components/ODataOsascoDC';
+import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle, Globe, Server } from 'lucide-react';
 
 export default function App() {
-  const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL' | 'SUBESTACOES'>('OPERACAO');
+  const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL' | 'SUBESTACOES' | 'ODATA_DC'>('OPERACAO');
 
   // GUI Theme Style state (Classic CRT SCADA vs Modern Hitachi ADMS)
   const [guiStyle, setGuiStyle] = useState<'CLASSIC_SCADA' | 'HITACHI_ADMS'>(() => {
@@ -65,6 +66,24 @@ export default function App() {
   
   const [activeFault, setActiveFault] = useState<string>('Nenhum');
   const [timeSyncMode, setTimeSyncMode] = useState<SyncProtocol>('PTP');
+
+  // ODATA Osasco Data Center - Climatização, Servidores & GMG States
+  const [odataGmgActive, setOdataGmgActive] = useState<boolean>(false);
+  const [odataServerStress, setOdataServerStress] = useState<number>(60);
+  const [odataHvacSetpoint, setOdataHvacSetpoint] = useState<number>(21);
+
+  // Dynamic ODATA server load model
+  const computedOdataLoadKw = useMemo(() => {
+    const baseServer = (150 + 90 + 120 + 60 + 40); // 460 kW typical
+    const scale = 0.5 + (odataServerStress / 100);
+    const totalIt = baseServer * scale;
+    const hvacThermal = totalIt * 0.85;
+    const tempDeltaFactor = Math.max(0.5, (30 - odataHvacSetpoint) / 8); 
+    const chillerPower = (hvacThermal / 3.4) * tempDeltaFactor;
+    const fanPower = 35 + (odataServerStress * 0.65);
+    const aux = 45;
+    return Math.round(totalIt + chillerPower + fanPower + aux);
+  }, [odataServerStress, odataHvacSetpoint]);
 
   // Dynamic Network State Estimation convergence & Island Count
   const computedNetworkState = useMemo(() => {
@@ -663,7 +682,9 @@ export default function App() {
         load2Current = (load2Power * 1000) / estimatedBusVolts;
       }
 
-      const totalLoadsKw = load1Power + load2Power;
+      // ODATA Osasco SP-01 adds its dynamic load to the substation if on grid (gmg inactive)
+      const odataCurrentDrawKw = !odataGmgActive ? computedOdataLoadKw : 0;
+      const totalLoadsKw = load1Power + load2Power + odataCurrentDrawKw;
 
       // Battery Storage (BESS) calculation
       let bessVolts = estimatedBusVolts;
@@ -1027,6 +1048,25 @@ export default function App() {
         >
           <Globe className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-indigo-400'}`} /> Gestão de Subestações (OpenInfra API)
         </button>
+        <button
+          id="tab-odata-dc"
+          onClick={() => setActiveSegment('ODATA_DC')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'ODATA_DC'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'ODATA_DC'
+                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold shadow-sm shadow-cyan-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
+          }`}
+        >
+          <Server className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-cyan-400'}`} /> Data Center ODATA Osasco
+        </button>
       </nav>
 
       {/* Dynamic Alarm Limits Notification Bar */}
@@ -1161,6 +1201,25 @@ export default function App() {
               onSelectSubstation={handleSelectSubstation}
               onAddSubstation={handleAddSubstation}
               onDeleteSubstation={handleDeleteSubstation}
+            />
+          </div>
+        )}
+
+        {/* VIEW SEGMENT F: ODATA Osasco SP-01 Data Center Operations Panel */}
+        {activeSegment === 'ODATA_DC' && (
+          <div className="w-full">
+            <ODataOsascoDC
+              guiStyle={guiStyle}
+              breakers={breakers}
+              activeFault={activeFault}
+              odataGmgActive={odataGmgActive}
+              onSetOdataGmgActive={setOdataGmgActive}
+              odataServerStress={odataServerStress}
+              onSetOdataServerStress={setOdataServerStress}
+              odataHvacSetpoint={odataHvacSetpoint}
+              onSetOdataHvacSetpoint={setOdataHvacSetpoint}
+              gridVoltage={telemetry.gridVoltage}
+              busVoltage={telemetry.bus800VdcVoltage}
             />
           </div>
         )}
