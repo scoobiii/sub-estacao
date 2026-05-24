@@ -21,6 +21,24 @@ import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle,
 export default function App() {
   const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL' | 'SUBESTACOES'>('OPERACAO');
 
+  // GUI Theme Style state (Classic CRT SCADA vs Modern Hitachi ADMS)
+  const [guiStyle, setGuiStyle] = useState<'CLASSIC_SCADA' | 'HITACHI_ADMS'>(() => {
+    return (localStorage.getItem('substation_gui_style') as 'CLASSIC_SCADA' | 'HITACHI_ADMS') || 'HITACHI_ADMS';
+  });
+
+  const handleGuiStyleChange = (style: 'CLASSIC_SCADA' | 'HITACHI_ADMS') => {
+    setGuiStyle(style);
+    localStorage.setItem('substation_gui_style', style);
+    // Add SCADA system packet log
+    injectPacket(
+      'MMS',
+      'SCADA.CONSOLE',
+      'SCADA.OPERATOR_TERM',
+      `Interface do Operador reorganizada. Estilo carregado: ${style === 'CLASSIC_SCADA' ? 'SCADA Analógico Clássico de Subestação' : 'Hitachi ADMS Advanced Management'}`,
+      { guiStyle: style, resolution: 'FHD', subsystem: 'HMI' }
+    );
+  };
+
   // 1. Core States for Substation breakers and switches
   const [breakers, setBreakers] = useState({
     cb_ac: 'CLOSED' as SwitchState,
@@ -861,7 +879,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex flex-col font-sans select-none antialiased">
+    <div className={`min-h-screen flex flex-col font-sans select-none antialiased transition-colors duration-300 ${
+      guiStyle === 'CLASSIC_SCADA' ? 'bg-[#10141d] text-[#e2e8f0]' : 'bg-[#050505] text-[#e2e8f0]'
+    }`}>
       
       {/* 1. Header component, including standard sync values */}
       <Header 
@@ -870,59 +890,105 @@ export default function App() {
         timeSyncAccuracy={getSyncAccuracy(timeSyncMode)}
         isSyncLost={activeFault === 'Perda Sincronismo Temporal'}
         systemTime={getCurrentFormattedTime()}
+        guiStyle={guiStyle}
+        onChangeGuiStyle={handleGuiStyleChange}
       />
 
       {/* 2. Responsive Multi-Segment Navigation Tab Selector */}
-      <nav className="bg-[#0f0f0f]/90 border-b border-[#262626]/80 px-6 py-2 flex overflow-x-auto gap-2 text-xs scrollbar-none shrink-0 sticky top-0 z-40">
+      <nav className={`px-6 py-2 flex overflow-x-auto gap-2 text-xs scrollbar-none shrink-0 sticky top-0 z-40 transition-all duration-300 ${
+        guiStyle === 'CLASSIC_SCADA' 
+          ? 'bg-[#171b26] border-b-2 border-[#2b3142] py-2.5 shadow-md shadow-[#000000]/20' 
+          : 'bg-[#0f0f0f]/90 border-b border-[#262626]/80'
+      }`}>
         <button
           onClick={() => setActiveSegment('OPERACAO')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
-            activeSegment === 'OPERACAO'
-              ? 'bg-amber-500/10 text-amber-500 border-amber-500/30 font-bold shadow-sm shadow-amber-500/5'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'OPERACAO'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'OPERACAO'
+                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/30 font-bold shadow-sm shadow-amber-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
           }`}
         >
-          <Zap className="h-4 w-4 text-amber-500" /> Operação CC/CA & SLD
+          <Zap className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-amber-500'}`} /> Operação CC/CA & SLD
         </button>
         <button
           onClick={() => setActiveSegment('REDES')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
-            activeSegment === 'REDES'
-              ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold shadow-sm shadow-cyan-500/5'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'REDES'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'REDES'
+                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold shadow-sm shadow-cyan-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
           }`}
         >
-          <Layers className="h-4 w-4 text-cyan-400" /> Barramento de Processo (IEC 61850)
+          <Layers className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-cyan-400'}`} /> Barramento de Processo (IEC 61850)
         </button>
         <button
           onClick={() => setActiveSegment('TERMOGRAFIA')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
-            activeSegment === 'TERMOGRAFIA'
-              ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 font-bold shadow-sm shadow-orange-500/5'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'TERMOGRAFIA'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'TERMOGRAFIA'
+                    ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 font-bold shadow-sm shadow-orange-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
           }`}
         >
-          <Eye className="h-4 w-4 text-orange-400" /> Termografia & Relés IED
+          <Eye className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-orange-400'}`} /> Termografia & Relés IED
         </button>
         <button
           onClick={() => setActiveSegment('MANUAL')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
-            activeSegment === 'MANUAL'
-              ? 'bg-purple-500/10 text-purple-400 border-purple-500/30 font-bold shadow-sm shadow-purple-500/5'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'MANUAL'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'MANUAL'
+                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/30 font-bold shadow-sm shadow-purple-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
           }`}
         >
-          <BookOpen className="h-4 w-4 text-purple-400" /> Guia Didático SENAI-SP
+          <BookOpen className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-purple-400'}`} /> Guia Didático SENAI-SP
         </button>
         <button
           onClick={() => setActiveSegment('SUBESTACOES')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
-            activeSegment === 'SUBESTACOES'
-              ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 font-bold shadow-sm shadow-indigo-500/5'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'SUBESTACOES'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'SUBESTACOES'
+                    ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 font-bold shadow-sm shadow-indigo-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
           }`}
         >
-          <Globe className="h-4 w-4 text-indigo-400" /> Gestão de Subestações (OpenInfra API)
+          <Globe className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-indigo-400'}`} /> Gestão de Subestações (OpenInfra API)
         </button>
       </nav>
 
@@ -965,6 +1031,7 @@ export default function App() {
                 breakers={breakers}
                 onToggleBreaker={handleToggleBreaker}
                 activeFault={activeFault}
+                guiStyle={guiStyle}
               />
             </div>
             <div className="xl:col-span-5 h-full">
@@ -993,6 +1060,7 @@ export default function App() {
                 }}
                 timeSyncMode={timeSyncMode}
                 onChangeTimeSyncMode={handleChangeTimeSyncMode}
+                guiStyle={guiStyle}
               />
             </div>
           </div>
@@ -1008,6 +1076,7 @@ export default function App() {
               isSyncLost={activeFault === 'Perda Sincronismo Temporal'}
               activeFault={activeFault}
               gridFreq={telemetry.gridFreq}
+              guiStyle={guiStyle}
             />
           </div>
         )}
@@ -1020,6 +1089,7 @@ export default function App() {
                 hotspots={hotspotsData}
                 onToggleContactResistance={handleToggleContactResistance}
                 simulatedFaultHotspots={simulatedFaultHotspots}
+                guiStyle={guiStyle}
               />
             </div>
             <div className="xl:col-span-6 h-full">
@@ -1028,6 +1098,7 @@ export default function App() {
                 onUpdateIedConfig={handleUpdateIedConfig}
                 onResetIeds={handleResetIeds}
                 iedReadings={iedReadings}
+                guiStyle={guiStyle}
               />
             </div>
           </div>

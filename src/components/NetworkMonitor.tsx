@@ -9,6 +9,7 @@ interface NetworkMonitorProps {
   isSyncLost: boolean;
   activeFault: string;
   gridFreq: number;
+  guiStyle?: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
 }
 
 export default function NetworkMonitor({
@@ -18,7 +19,9 @@ export default function NetworkMonitor({
   isSyncLost,
   activeFault,
   gridFreq,
+  guiStyle = 'HITACHI_ADMS',
 }: NetworkMonitorProps) {
+  const isClassic = guiStyle === 'CLASSIC_SCADA';
   const [activeTab, setActiveTab] = useState<'ALL' | 'GOOSE' | 'SV' | 'MMS' | 'PTP'>('ALL');
   const [selectedPacket, setSelectedPacket] = useState<NetworkPacket | null>(null);
   
@@ -53,11 +56,11 @@ export default function NetworkMonitor({
       if (!canvas || !ctx || !isRunning) return;
 
       // Solid dark background
-      ctx.fillStyle = '#050505';
+      ctx.fillStyle = isClassic ? '#020d06' : '#050505';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Draw grid lines
-      ctx.strokeStyle = '#262626';
+      ctx.strokeStyle = isClassic ? '#114422' : '#262626';
       ctx.lineWidth = 0.5;
       
       // Horizontal centers
@@ -191,16 +194,26 @@ export default function NetworkMonitor({
     };
   }, [activeFault, gridFreq, timeSyncMode, isSyncLost]);
   return (
-    <div className="bg-[#0f0f0f] rounded-xl border border-[#262626] p-4 h-full flex flex-col">
+    <div className={`transition-all h-full flex flex-col ${
+      isClassic 
+        ? 'bg-[#151924] border-2 border-t-[#3b4356] border-l-[#3b4356] border-b-[#0f1118] border-r-[#0f1118] p-4' 
+        : 'bg-[#0f0f0f] rounded-xl border border-[#262626] p-4'
+    }`}>
       
       {/* Scope Details Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#262626] pb-3 mb-4">
-        <h3 className="text-sm font-semibold text-slate-300 font-sans flex items-center gap-2">
-          <Layers className="h-4 w-4 text-cyan-400" />
-          Osciloscópio Digital & Protocolos (IEC 61850)
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 mb-4 ${
+        isClassic ? 'border-[#2d3448]' : 'border-[#262626]'
+      }`}>
+        <h3 className={`text-sm font-semibold font-sans flex items-center gap-2 ${
+          isClassic ? 'font-mono text-[#00ffcc] uppercase' : 'text-slate-300'
+        }`}>
+          <Layers className={`h-4 w-4 ${isClassic ? 'text-[#00ffcc]' : 'text-cyan-400'}`} />
+          {isClassic ? 'OSCILOSCÓPIO DIGITAL E REGISTRADOR DE EVENTOS (MMS)' : 'Osciloscópio Digital & Protocolos (IEC 61850)'}
         </h3>
         
-        <div className="flex items-center gap-2 bg-[#050505] border border-[#262626] p-1 rounded-lg">
+        <div className={`flex items-center gap-2 border px-1.5 py-0.5 ${
+          isClassic ? 'bg-[#090b11] border-[#3c4558] rounded-none' : 'bg-[#050505] border border-[#262626] rounded-lg'
+        }`}>
           <span className="text-[10px] font-mono text-slate-400 px-2 font-semibold">T-SYNC:</span>
           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
             isSyncLost 
@@ -216,7 +229,9 @@ export default function NetworkMonitor({
         
         {/* Real-time Oscilloscope Waves (Left 7 Columns) */}
         <div className="lg:col-span-7 flex flex-col gap-3">
-          <div className="relative border border-[#262626]/80 rounded-lg overflow-hidden bg-[#050505] flex-grow min-h-[220px]">
+          <div className={`relative overflow-hidden flex-grow min-h-[220px] border ${
+            isClassic ? 'bg-[#020d06] border-[#1d442a]' : 'bg-[#050505] border-[#262626]/80 rounded-lg'
+          }`}>
             <canvas 
               ref={canvasRef} 
               className="w-full h-full block" 
@@ -236,7 +251,11 @@ export default function NetworkMonitor({
             </div>
           </div>
 
-          <div className="bg-[#050505]/50 border border-[#262626] p-2.5 rounded-lg text-xs text-slate-400 leading-relaxed font-sans">
+          <div className={`border p-2.5 rounded-lg text-xs leading-relaxed font-sans ${
+            isClassic 
+              ? 'bg-[#090b11] border-[#292f40] text-slate-400' 
+              : 'bg-[#050505]/50 border border-[#262626] text-slate-400'
+          }`}>
             <span className="text-amber-400 font-semibold font-mono">Process Bus Analisador:</span> O osciloscópio renderiza o tráfego continuo de <strong>Sampled Values (SV - IEC 61850-9-2LE)</strong>. IEDs processam em tempo real estas senoides digitais para disparar teleproteções <strong>GOOSE</strong>. O protocolo <strong>PTP (IEEE 1588)</strong> garante que os amostradores publiquem alinhados no mesmo instante absoluto.
           </div>
         </div>

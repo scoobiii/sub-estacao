@@ -6,13 +6,16 @@ interface ThermalViewProps {
   hotspots: ThermogramHotspot[];
   onToggleContactResistance: (id: string) => void;
   simulatedFaultHotspots: Record<string, boolean>; // componentId: isActive
+  guiStyle?: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
 }
 
 export default function ThermalView({
   hotspots,
   onToggleContactResistance,
   simulatedFaultHotspots,
+  guiStyle = 'HITACHI_ADMS',
 }: ThermalViewProps) {
+  const isClassic = guiStyle === 'CLASSIC_SCADA';
   const [selectedHopspotId, setSelectedHotspotId] = useState<string>('rect_joint');
   
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -137,15 +140,23 @@ export default function ThermalView({
   const isResistanceFaultActive = simulatedFaultHotspots[selectedHotspot.id] || false;
 
   return (
-    <div className="bg-[#0f0f0f] rounded-xl border border-[#262626] p-4 h-full flex flex-col">
+    <div className={`transition-all h-full flex flex-col ${
+      isClassic 
+        ? 'bg-[#151924] border-2 border-t-[#3b4356] border-l-[#3b4356] border-b-[#0f1118] border-r-[#0f1118] p-4 shadow-inner' 
+        : 'bg-[#0f0f0f] rounded-xl border border-[#262626] p-4'
+    }`}>
       
       {/* Module Title */}
-      <div className="flex items-center justify-between border-b border-[#262626] pb-3 mb-4">
-        <h3 className="text-sm font-semibold text-slate-300 font-sans flex items-center gap-2">
-          <Eye className="h-4.5 w-4.5 text-orange-450" />
-          Análise Termográfica Online (Conexões CC/CA)
+      <div className={`flex items-center justify-between border-b pb-3 mb-4 ${
+        isClassic ? 'border-[#2d3448]' : 'border-[#262626]'
+      }`}>
+        <h3 className={`text-sm font-semibold font-sans flex items-center gap-2 ${
+          isClassic ? 'font-mono text-[#00ffcc] uppercase' : 'text-slate-300'
+        }`}>
+          <Eye className={`h-4.5 w-4.5 ${isClassic ? 'text-[#00ffcc]' : 'text-orange-450'}`} />
+          {isClassic ? 'CÂMERA DE TERMOGRAFIA DAS DISCO COILS' : 'Análise Termográfica Online (Conexões CC/CA)'}
         </h3>
-        <span className="text-[10px] font-mono text-slate-500 font-medium">
+        <span className={`text-[10px] font-mono font-medium ${isClassic ? 'text-slate-400' : 'text-slate-500'}`}>
           Padronização Delta-T NETA CTS
         </span>
       </div>
@@ -154,7 +165,11 @@ export default function ThermalView({
         
         {/* Hotspots Sidebar Selector (4 Columns) */}
         <div className="md:col-span-4 flex flex-col gap-2.5">
-          <span className="text-[10.5px] font-mono font-bold text-slate-550 uppercase tracking-wider block">Conexões Sob Monitoração</span>
+          <span className={`text-[10.5px] font-mono font-bold uppercase tracking-wider block ${
+            isClassic ? 'text-[#ffcc00]' : 'text-slate-550'
+          }`}>
+            {isClassic ? 'PONTOS COLETADOS' : 'Conexões Sob Monitoração'}
+          </span>
           
           <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
             {hotspots.map(spot => {
@@ -168,10 +183,14 @@ export default function ThermalView({
                 <button
                   key={spot.id}
                   onClick={() => setSelectedHotspotId(spot.id)}
-                  className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-1.5 cursor-pointer ${
+                  className={`w-full text-left p-2 border transition-all flex items-center justify-between gap-1.5 cursor-pointer ${
                     selectedHopspotId === spot.id
-                      ? 'bg-[#1a1a1a] border-[#444444] text-slate-100 font-bold'
-                      : 'bg-[#050505]/40 border-[#262626]/60 text-slate-400 hover:text-slate-200 hover:bg-[#151515]'
+                      ? isClassic 
+                        ? 'bg-[#292f40] border-[#4d566d] text-[#00ffcc] font-black'
+                        : 'bg-[#1a1a1a] border-[#444444] text-slate-100 font-bold rounded-lg'
+                      : isClassic 
+                        ? 'bg-[#090b11]/80 border-[#292f40]/80 text-slate-400 hover:text-slate-200'
+                        : 'bg-[#050505]/40 border-[#262626]/60 text-slate-400 hover:text-slate-200 hover:bg-[#151515] rounded-lg'
                   }`}
                 >
                   <div className="truncate text-left">

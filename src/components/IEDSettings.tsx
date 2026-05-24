@@ -7,6 +7,7 @@ interface IEDSettingsProps {
   onUpdateIedConfig: (id: string, updated: Partial<IEDConfig>) => void;
   onResetIeds: () => void;
   iedReadings?: Record<string, { current: number; temp: number }>;
+  guiStyle?: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
 }
 
 export default function IEDSettings({
@@ -14,7 +15,9 @@ export default function IEDSettings({
   onUpdateIedConfig,
   onResetIeds,
   iedReadings,
+  guiStyle = 'HITACHI_ADMS',
 }: IEDSettingsProps) {
+  const isClassic = guiStyle === 'CLASSIC_SCADA';
   const [selectedIedId, setSelectedIedId] = useState<string>(ieds[1]?.id || ieds[0]?.id || '');
   const activeIed = ieds.find(i => i.id === selectedIedId) || ieds[0];
 
@@ -23,17 +26,29 @@ export default function IEDSettings({
   const isCurrentViolated = reading.current > (activeIed.currentLimit ?? 800);
 
   return (
-    <div className="bg-[#0f0f0f] rounded-xl border border-[#262626] p-4 h-full flex flex-col">
+    <div className={`transition-all h-full flex flex-col ${
+      isClassic 
+        ? 'bg-[#151924] border-2 border-t-[#3b4356] border-l-[#3b4356] border-b-[#0f1118] border-r-[#0f1118] p-4 shadow-inner' 
+        : 'bg-[#0f0f0f] rounded-xl border border-[#262626] p-4'
+    }`}>
       
       {/* Visual Title */}
-      <div className="flex items-center justify-between border-b border-[#262626] pb-3 mb-4">
-        <h3 className="text-sm font-semibold text-slate-300 font-sans flex items-center gap-2">
+      <div className={`flex items-center justify-between border-b pb-3 mb-4 ${
+        isClassic ? 'border-[#2d3448]' : 'border-[#262626]'
+      }`}>
+        <h3 className={`text-sm font-semibold font-sans flex items-center gap-2 ${
+          isClassic ? 'font-mono text-[#00ffcc] uppercase' : 'text-slate-300'
+        }`}>
           <Shield className="h-4.5 w-4.5 text-cyan-400" />
-          Ajustes de Proteção IP/ANSI de IEDs (IEC 61850)
+          {isClassic ? 'CONFIGURADOR REGISTRADOR DE LIMITES ANSI (IEDs)' : 'Ajustes de Proteção IP/ANSI de IEDs (IEC 61850)'}
         </h3>
         <button
           onClick={onResetIeds}
-          className="text-slate-400 hover:text-cyan-400 text-xs font-mono flex items-center gap-1 bg-[#050505] border border-[#262626] px-2 py-1 rounded cursor-pointer transition-colors"
+          className={`text-xs font-mono flex items-center gap-1 px-2 py-1 cursor-pointer transition-colors border ${
+            isClassic 
+              ? 'bg-[#1b202c] border-[#313849] text-[#eeff00] hover:text-white' 
+              : 'bg-[#050505] border-[#262626] text-slate-400 hover:text-cyan-400 rounded'
+          }`}
         >
           <RefreshCw className="h-3.5 w-3.5" /> Padronizar Relés
         </button>
@@ -43,7 +58,11 @@ export default function IEDSettings({
         
         {/* Left column: List of IED devices (4 Columns) */}
         <div className="md:col-span-4 flex flex-col gap-2">
-          <span className="text-[10.5px] font-mono font-bold text-slate-500 uppercase tracking-wider block">Lista de Relés (IEDs)</span>
+          <span className={`text-[10.5px] font-mono font-bold uppercase tracking-wider block ${
+            isClassic ? 'text-[#ffcc00]' : 'text-slate-500'
+          }`}>
+            {isClassic ? 'RELÉS CONECTADOS' : 'Lista de Relés (IEDs)'}
+          </span>
           
           <div className="space-y-1.5 overflow-y-auto max-h-[190px]">
             {ieds.map(i => {
@@ -52,10 +71,14 @@ export default function IEDSettings({
                 <button
                   key={i.id}
                   onClick={() => setSelectedIedId(i.id)}
-                  className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                  className={`w-full text-left p-2.5 border transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#1a1a1a] border-[#444444] text-cyan-400 font-semibold'
-                      : 'bg-[#050505]/40 border-[#262626]/60 text-slate-400 hover:text-slate-200 hover:bg-[#1a1a1a]'
+                      ? isClassic
+                        ? 'bg-[#292f40] border-[#4d566d] text-[#00ffcc] font-black'
+                        : 'bg-[#1a1a1a] border-[#444444] text-cyan-400 font-semibold rounded-lg'
+                      : isClassic
+                        ? 'bg-[#090b11]/60 border-[#292f40] text-slate-400 hover:text-slate-200'
+                        : 'bg-[#050505]/40 border-[#262626]/60 text-slate-400 hover:text-slate-200 hover:bg-[#1a1a1a] rounded-lg'
                   }`}
                 >
                   <div className="flex items-center gap-2">

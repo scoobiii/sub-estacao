@@ -14,6 +14,7 @@ interface SingleLineDiagramProps {
   };
   onToggleBreaker: (id: string) => void;
   activeFault: string;
+  guiStyle?: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
 }
 
 export default function SingleLineDiagram({
@@ -21,7 +22,10 @@ export default function SingleLineDiagram({
   breakers,
   onToggleBreaker,
   activeFault,
+  guiStyle = 'HITACHI_ADMS',
 }: SingleLineDiagramProps) {
+  const isClassic = guiStyle === 'CLASSIC_SCADA';
+
   // Helper to check flow status
   const isAcFlowing = breakers.cb_ac === 'CLOSED' && activeFault !== 'Curto AC 138kV';
   const isRectifierActive = isAcFlowing && breakers.cb_rect === 'CLOSED' && activeFault !== 'Curto Barramento 800VDC';
@@ -40,23 +44,49 @@ export default function SingleLineDiagram({
     sublabel?: string
   ) => {
     const isClosed = state === 'CLOSED';
+    
     return (
       <div 
-        className="absolute bg-[#0f0f0f] border border-[#262626] p-2 rounded-lg flex flex-col items-center shadow-lg group hover:border-[#444444] transition-all z-10"
+        className={`absolute p-2 flex flex-col items-center z-10 transition-all ${
+          isClassic 
+            ? 'bg-[#1b202c] border-2 border-[#3c4558] rounded' 
+            : 'bg-[#0f0f0f] border border-[#262626] rounded-lg shadow-lg group hover:border-[#444444]'
+        }`}
         style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
       >
-        <span className="text-[10px] font-mono text-slate-500 font-semibold mb-1 select-none">{label}</span>
-        <button
-          onClick={() => onToggleBreaker(id)}
-          className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-            isClosed
-              ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 hover:bg-emerald-500/20'
-              : 'bg-red-500/10 text-red-450 border border-red-500/20 hover:bg-red-500/20'
-          }`}
-        >
-          <span className={`h-2 w-2 rounded-full ${isClosed ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
-          {isClosed ? 'FECHADO' : 'ABERTO'}
-        </button>
+        <span className={`text-[10px] font-mono font-semibold mb-1 select-none ${
+          isClassic ? 'text-[#00ffcc]' : 'text-slate-500'
+        }`}>
+          {label}
+        </span>
+
+        {isClassic ? (
+          // Retro chunky square mechanical button with outset bevel style
+          <button
+            onClick={() => onToggleBreaker(id)}
+            className={`px-3 py-1 font-mono text-[10.5px] font-extrabold tracking-wide uppercase cursor-pointer border-2 transition-all active:translate-y-[1px] active:shadow-none shadow-[2px_2px_4px_rgba(0,0,0,0.4)] ${
+              isClosed
+                ? 'bg-[#ef4444] text-white border-t-[#fca5a5] border-l-[#fca5a5] border-b-[#7f1d1d] border-r-[#7f1d1d]'
+                : 'bg-[#22c55e] text-white border-t-[#86efac] border-l-[#86efac] border-b-[#14532d] border-r-[#14532d]'
+            }`}
+          >
+            {isClosed ? '⚡ CHEIO' : '⚪ SECCIONADO'}
+          </button>
+        ) : (
+          // Modern sleek button (Hitachi ADMS style)
+          <button
+            onClick={() => onToggleBreaker(id)}
+            className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              isClosed
+                ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 hover:bg-emerald-500/20'
+                : 'bg-red-500/10 text-red-450 border border-red-500/20 hover:bg-red-500/20'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${isClosed ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
+            {isClosed ? 'FECHADO' : 'ABERTO'}
+          </button>
+        )}
+
         {sublabel && (
           <span className="text-[9px] font-mono text-slate-500 mt-1 select-none">{sublabel}</span>
         )}
@@ -65,24 +95,36 @@ export default function SingleLineDiagram({
   };
 
   return (
-    <div className="bg-[#0f0f0f] rounded-xl border border-[#262626] p-4 relative overflow-hidden flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4 border-b border-[#262626] pb-3">
-        <h3 className="text-sm font-semibold text-slate-300 font-sans flex items-center gap-2">
-          <Zap className="h-4 w-4 text-amber-500" />
-          Diagrama Unifilar Interativo (SLD)
+    <div className={`rounded-xl transition-all h-full ${
+      isClassic 
+        ? 'bg-[#151924] border-2 border-t-[#3b4356] border-l-[#3b4356] border-b-[#0f1118] border-r-[#0f1118] p-4 relative overflow-hidden flex flex-col shadow-inner' 
+        : 'bg-[#0f0f0f] border border-[#262626] p-4 relative overflow-hidden flex flex-col'
+    }`}>
+      <div className={`flex items-center justify-between mb-4 pb-3 border-b ${
+        isClassic ? 'border-[#2d3448]' : 'border-[#262626]'
+      }`}>
+        <h3 className={`text-md font-semibold font-sans flex items-center gap-2 ${
+          isClassic ? 'font-mono uppercase text-[#00ffcc]' : 'text-slate-300'
+        }`}>
+          <Zap className={`h-4 w-4 ${isClassic ? 'text-[#00ffcc]' : 'text-amber-500'}`} />
+          {isClassic ? 'MIMICO SINÓPTICO DOS DISJUNTORES (SLD)' : 'Diagrama Unifilar Interativo (SLD)'}
         </h3>
         <div className="flex items-center gap-4 text-xs">
           <span className="flex items-center gap-1.5 font-mono text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-[#3b82f6]" /> AC Grid (13.8kV / 138kV)
+            <span className="h-2 w-2 rounded-full bg-[#3b82f6]" /> {isClassic ? 'AC REDE 138KV' : 'AC Grid (13.8kV / 138kV)'}
           </span>
           <span className="flex items-center gap-1.5 font-mono text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-orange-400" /> Barramento DC (800V)
+            <span className="h-2 w-2 rounded-full bg-orange-400" /> {isClassic ? 'BARRAMENTO CC COILS (800V)' : 'Barramento DC (800V)'}
           </span>
         </div>
       </div>
 
       {/* Main Interactive Map Area */}
-      <div className="relative flex-grow min-h-[460px] bg-[#050505]/70 rounded-lg border border-[#262626]/60 p-2 flex items-center justify-center">
+      <div className={`relative flex-grow min-h-[460px] rounded-lg p-2 flex items-center justify-center border transition-all ${
+        isClassic 
+          ? 'bg-[#090b11] border-[#292f40] shadow-[inset_2px_2px_6px_rgba(0,0,0,0.8)]' 
+          : 'bg-[#050505]/70 border border-[#262626]/60'
+      }`}>
         
         {/* Decorative Grid Gridline overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(30,41,59,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.1)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
