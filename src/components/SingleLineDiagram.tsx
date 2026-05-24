@@ -15,6 +15,7 @@ interface SingleLineDiagramProps {
   onToggleBreaker: (id: string) => void;
   activeFault: string;
   guiStyle?: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
+  voltageLayers?: { hv: boolean; mv: boolean; lv: boolean };
 }
 
 export default function SingleLineDiagram({
@@ -23,6 +24,7 @@ export default function SingleLineDiagram({
   onToggleBreaker,
   activeFault,
   guiStyle = 'HITACHI_ADMS',
+  voltageLayers = { hv: true, mv: true, lv: true },
 }: SingleLineDiagramProps) {
   const isClassic = guiStyle === 'CLASSIC_SCADA';
 
@@ -44,14 +46,16 @@ export default function SingleLineDiagram({
     sublabel?: string
   ) => {
     const isClosed = state === 'CLOSED';
+    const layer = id === 'cb_ac' ? 'hv' : (id === 'cb_rect' ? 'mv' : 'lv');
+    const isLayerActive = voltageLayers[layer];
     
     return (
       <div 
-        className={`absolute p-2 flex flex-col items-center z-10 transition-all ${
+        className={`absolute p-2 flex flex-col items-center z-10 transition-all duration-300 ${
           isClassic 
             ? 'bg-[#1b202c] border-2 border-[#3c4558] rounded' 
             : 'bg-[#0f0f0f] border border-[#262626] rounded-lg shadow-lg group hover:border-[#444444]'
-        }`}
+        } ${isLayerActive ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-50'}`}
         style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
       >
         <span className={`text-[10px] font-mono font-semibold mb-1 select-none ${
@@ -148,154 +152,168 @@ export default function SingleLineDiagram({
 
           {/* BACKGROUND static lines (gray or neon depending on power state) */}
           
-          {/* Main Grid Line (Vertical from top to center-left rectifier) */}
-          {/* Node: 138kV Grid -> T1 Transformer */}
-          <line 
-            x1="20%" y1="10%" x2="20%" y2="28%" 
-            stroke={isAcFlowing ? '#22d3ee' : '#334155'} 
-            strokeWidth="3.5" 
-            filter={isAcFlowing ? 'url(#glow-ac)' : ''}
-            className="transition-colors duration-500"
-          />
-
-          {/* Transformer Symbol (Two intersecting circles) */}
-          <circle cx="20%" cy="28%" r="14" stroke={isAcFlowing ? '#22d3ee' : '#475569'} strokeWidth="3" fill="none" />
-          <circle cx="20%" cy="34%" r="14" stroke={isAcFlowing ? '#22d3ee' : '#475569'} strokeWidth="3" fill="none" />
-          
-          {/* T1 Output -> AC circuit breaker */}
-          <line 
-            x1="20%" y1="38%" x2="20%" y2="52%" 
-            stroke={isAcFlowing ? '#22d3ee' : '#334155'} 
-            strokeWidth="3"
-            filter={isAcFlowing ? 'url(#glow-ac)' : ''}
-          />
-          
-          {/* AC circuit breaker output -> Rectifier input */}
-          <line 
-            x1="20%" y1="52%" x2="20%" y2="70%" 
-            stroke={breakers.cb_ac === 'CLOSED' && isAcFlowing ? '#22d3ee' : '#334155'} 
-            strokeWidth="3"
-            filter={breakers.cb_ac === 'CLOSED' && isAcFlowing ? 'url(#glow-ac)' : ''}
-          />
-
-          {/* Rectifier block outlet (Horizontal to DC bus) */}
-          <path 
-            d="M 20% 74% L 20% 86% L 50% 86%" 
-            stroke={isRectifierActive ? '#f59e0b' : '#334155'} 
-            strokeWidth="3.5" 
-            fill="none"
-            filter={isRectifierActive ? 'url(#glow-dc)' : ''}
-          />
-
-          {/* CORE 800VDC BUS BAR (Heavy horizontal orange line at 86%) */}
-          <line 
-            x1="8%" y1="86%" x2="92%" y2="86%" 
-            stroke={isBusEnergized ? '#ea580c' : '#1e293b'} 
-            strokeWidth="7" 
-            strokeLinecap="round"
-            filter={isBusEnergized ? 'url(#glow-dc)' : ''}
-            className="transition-colors duration-500"
-          />
-
-          {/* SOLAR FEEDER (Top right to DC Bus) */}
-          <path 
-            d="M 50% 18% L 50% 41%" 
-            stroke={isSolarFlowing ? '#fbbf24' : '#334155'} 
-            strokeWidth="3" 
-            fill="none"
-            filter={isSolarFlowing ? 'url(#glow-dc)' : ''}
-          />
-          <line 
-            x1="50%" y1="41%" x2="50%" y2="86%" 
-            stroke={breakers.cb_solar === 'CLOSED' && isSolarFlowing && isBusEnergized ? '#fbbf24' : '#334155'} 
-            strokeWidth="3" 
-            filter={breakers.cb_solar === 'CLOSED' && isSolarFlowing && isBusEnergized ? 'url(#glow-dc)' : ''}
-          />
-
-          {/* BESS FEEDER (Top right-ish to DC Bus) */}
-          <path 
-            d="M 80% 18% L 80% 41%" 
-            stroke={breakers.cb_bess === 'CLOSED' ? '#e2e8f0' : '#334155'} 
-            strokeWidth="3" 
-            fill="none"
-          />
-          <line 
-            x1="80%" y1="41%" x2="80%" y2="86%" 
-            stroke={breakers.cb_bess === 'CLOSED' && isBusEnergized ? '#f59e0b' : '#334155'} 
-            strokeWidth="3" 
-            filter={breakers.cb_bess === 'CLOSED' && isBusEnergized ? 'url(#glow-dc)' : ''}
-          />
-
-          {/* LOAD 1 FEEDER (Down from 86% to 92%) */}
-          <line 
-            x1="35%" y1="86%" x2="35%" y2="92%" 
-            stroke={breakers.cb_load1 === 'CLOSED' && isBusEnergized ? '#ea580c' : '#334155'} 
-            strokeWidth="3"
-            filter={breakers.cb_load1 === 'CLOSED' && isBusEnergized ? 'url(#glow-dc)' : ''}
-          />
-
-          {/* LOAD 2 FEEDER (Down from 86% to 92%) */}
-          <line 
-            x1="65%" y1="86%" x2="65%" y2="92%" 
-            stroke={breakers.cb_load2 === 'CLOSED' && isBusEnergized ? '#ea580c' : '#334155'} 
-            strokeWidth="3"
-            filter={breakers.cb_load2 === 'CLOSED' && isBusEnergized ? 'url(#glow-dc)' : ''}
-          />
-
-          {/* Animated Electron Flows (Dashes crawling along the lines) */}
-          {isAcFlowing && (
+          {/* HV LAYER GROUP: Grid & T1 Input */}
+          <g className={`transition-all duration-300 ${voltageLayers.hv ? 'opacity-100' : 'opacity-[0.12]'}`}>
+            {/* Main Grid Line (Vertical from top to center-left rectifier) */}
+            {/* Node: 138kV Grid -> T1 Transformer */}
             <line 
-              x1="20%" y1="10%" x2="20%" y2="52%" 
-              stroke="#e0f7fa" strokeWidth="2" strokeDasharray="8 12" 
-              strokeDashoffset="10" className="animate-[dash_1s_linear_infinite]"
+              x1="20%" y1="10%" x2="20%" y2="28%" 
+              stroke={isAcFlowing ? '#22d3ee' : '#334155'} 
+              strokeWidth="3.5" 
+              filter={isAcFlowing ? 'url(#glow-ac)' : ''}
+              className="transition-colors duration-500"
             />
-          )}
-          {isRectifierActive && (
+            {/* Transformer Symbol (Two intersecting circles) */}
+            <circle cx="20%" cy="28%" r="14" stroke={isAcFlowing ? '#22d3ee' : '#475569'} strokeWidth="3" fill="none" />
+            {/* T1 Output -> AC circuit breaker */}
+            <line 
+              x1="20%" y1="38%" x2="20%" y2="52%" 
+              stroke={isAcFlowing ? '#22d3ee' : '#334155'} 
+              strokeWidth="3"
+              filter={isAcFlowing ? 'url(#glow-ac)' : ''}
+            />
+          </g>
+
+          {/* MV LAYER GROUP: Transformer output & Rectifier conversion */}
+          <g className={`transition-all duration-300 ${voltageLayers.mv ? 'opacity-100' : 'opacity-[0.12]'}`}>
+            <circle cx="20%" cy="34%" r="14" stroke={isAcFlowing ? '#22d3ee' : '#475569'} strokeWidth="3" fill="none" />
+            {/* AC circuit breaker output -> Rectifier input */}
+            <line 
+              x1="20%" y1="52%" x2="20%" y2="70%" 
+              stroke={breakers.cb_ac === 'CLOSED' && isAcFlowing ? '#22d3ee' : '#334155'} 
+              strokeWidth="3"
+              filter={breakers.cb_ac === 'CLOSED' && isAcFlowing ? 'url(#glow-ac)' : ''}
+            />
+            {/* Rectifier block outlet (Horizontal to DC bus) */}
             <path 
               d="M 20% 74% L 20% 86% L 50% 86%" 
-              stroke="#fef3c7" strokeWidth="2" strokeDasharray="8 12" 
-              fill="none" className="animate-[dash_1.5s_linear_infinite]"
+              stroke={isRectifierActive ? '#f59e0b' : '#334155'} 
+              strokeWidth="3.5" 
+              fill="none"
+              filter={isRectifierActive ? 'url(#glow-dc)' : ''}
             />
-          )}
-          {isSolarFlowing && (
+          </g>
+
+          {/* LV LAYER GROUP: DC 800V Bus, Solar PV, BESS Energy, Industrial loads */}
+          <g className={`transition-all duration-300 ${voltageLayers.lv ? 'opacity-100' : 'opacity-[0.12]'}`}>
+            {/* CORE 800VDC BUS BAR (Heavy horizontal orange line at 86%) */}
+            <line 
+              x1="8%" y1="86%" x2="92%" y2="86%" 
+              stroke={isBusEnergized ? '#ea580c' : '#1e293b'} 
+              strokeWidth="7" 
+              strokeLinecap="round"
+              filter={isBusEnergized ? 'url(#glow-dc)' : ''}
+              className="transition-colors duration-500"
+            />
+
+            {/* SOLAR FEEDER (Top right to DC Bus) */}
             <path 
-              d="M 50% 18% L 50% 86%" 
-              stroke="#fef3c7" strokeWidth="2" strokeDasharray="8 12" 
-              fill="none" className="animate-[dash_2s_linear_infinite]"
+              d="M 50% 18% L 50% 41%" 
+              stroke={isSolarFlowing ? '#fbbf24' : '#334155'} 
+              strokeWidth="3" 
+              fill="none"
+              filter={isSolarFlowing ? 'url(#glow-dc)' : ''}
             />
-          )}
-          {breakers.cb_bess === 'CLOSED' && isBusEnergized && telemetry.bessCurrent !== 0 && (
+            <line 
+              x1="50%" y1="41%" x2="50%" y2="86%" 
+              stroke={breakers.cb_solar === 'CLOSED' && isSolarFlowing && isBusEnergized ? '#fbbf24' : '#334155'} 
+              strokeWidth="3" 
+              filter={breakers.cb_solar === 'CLOSED' && isSolarFlowing && isBusEnergized ? 'url(#glow-dc)' : ''}
+            />
+
+            {/* BESS FEEDER (Top right-ish to DC Bus) */}
             <path 
-              d={telemetry.bessCurrent < 0 ? "M 80% 86% L 80% 18%" : "M 80% 18% L 80% 86%"} 
-              stroke="#e2e8f0" strokeWidth="2" strokeDasharray="8 12" 
-              fill="none" className="animate-[dash_2s_linear_infinite]"
+              d="M 80% 18% L 80% 41%" 
+              stroke={breakers.cb_bess === 'CLOSED' ? '#e2e8f0' : '#334155'} 
+              strokeWidth="3" 
+              fill="none"
             />
-          )}
-          {breakers.cb_load1 === 'CLOSED' && isBusEnergized && (
+            <line 
+              x1="80%" y1="41%" x2="80%" y2="86%" 
+              stroke={breakers.cb_bess === 'CLOSED' && isBusEnergized ? '#f59e0b' : '#334155'} 
+              strokeWidth="3" 
+              filter={breakers.cb_bess === 'CLOSED' && isBusEnergized ? 'url(#glow-dc)' : ''}
+            />
+
+            {/* LOAD 1 FEEDER (Down from 86% to 92%) */}
             <line 
               x1="35%" y1="86%" x2="35%" y2="92%" 
-              stroke="#ffedd5" strokeWidth="2" strokeDasharray="8 8" 
-              className="animate-[dash_2.5s_linear_infinite]"
+              stroke={breakers.cb_load1 === 'CLOSED' && isBusEnergized ? '#ea580c' : '#334155'} 
+              strokeWidth="3"
+              filter={breakers.cb_load1 === 'CLOSED' && isBusEnergized ? 'url(#glow-dc)' : ''}
             />
-          )}
-          {breakers.cb_load2 === 'CLOSED' && isBusEnergized && (
+
+            {/* LOAD 2 FEEDER (Down from 86% to 92%) */}
             <line 
               x1="65%" y1="86%" x2="65%" y2="92%" 
-              stroke="#ffedd5" strokeWidth="2" strokeDasharray="8 8" 
-              className="animate-[dash_2.5s_linear_infinite]"
+              stroke={breakers.cb_load2 === 'CLOSED' && isBusEnergized ? '#ea580c' : '#334155'} 
+              strokeWidth="3"
+              filter={breakers.cb_load2 === 'CLOSED' && isBusEnergized ? 'url(#glow-dc)' : ''}
             />
-          )}
+          </g>
+
+          {/* Animated Electron Flows (Dashes crawling along the lines) */}
+          <g className={`transition-all duration-300 ${voltageLayers.hv ? 'opacity-100' : 'opacity-0'}`}>
+            {isAcFlowing && (
+              <line 
+                x1="20%" y1="10%" x2="20%" y2="52%" 
+                stroke="#e0f7fa" strokeWidth="2" strokeDasharray="8 12" 
+                strokeDashoffset="10" className="animate-[dash_1s_linear_infinite]"
+              />
+            )}
+          </g>
+
+          <g className={`transition-all duration-300 ${voltageLayers.mv ? 'opacity-100' : 'opacity-0'}`}>
+            {isRectifierActive && (
+              <path 
+                d="M 20% 74% L 20% 86% L 50% 86%" 
+                stroke="#fef3c7" strokeWidth="2" strokeDasharray="8 12" 
+                fill="none" className="animate-[dash_1.5s_linear_infinite]"
+              />
+            )}
+          </g>
+
+          <g className={`transition-all duration-300 ${voltageLayers.lv ? 'opacity-100' : 'opacity-0'}`}>
+            {isSolarFlowing && (
+              <path 
+                d="M 50% 18% L 50% 86%" 
+                stroke="#fef3c7" strokeWidth="2" strokeDasharray="8 12" 
+                fill="none" className="animate-[dash_2s_linear_infinite]"
+              />
+            )}
+            {breakers.cb_bess === 'CLOSED' && isBusEnergized && telemetry.bessCurrent !== 0 && (
+              <path 
+                d={telemetry.bessCurrent < 0 ? "M 80% 86% L 80% 18%" : "M 80% 18% L 80% 86%"} 
+                stroke="#e2e8f0" strokeWidth="2" strokeDasharray="8 12" 
+                fill="none" className="animate-[dash_2s_linear_infinite]"
+              />
+            )}
+            {breakers.cb_load1 === 'CLOSED' && isBusEnergized && (
+              <line 
+                x1="35%" y1="86%" x2="35%" y2="92%" 
+                stroke="#ffedd5" strokeWidth="2" strokeDasharray="8 8" 
+                className="animate-[dash_2.5s_linear_infinite]"
+              />
+            )}
+            {breakers.cb_load2 === 'CLOSED' && isBusEnergized && (
+              <line 
+                x1="65%" y1="86%" x2="65%" y2="92%" 
+                stroke="#ffedd5" strokeWidth="2" strokeDasharray="8 8" 
+                className="animate-[dash_2.5s_linear_infinite]"
+              />
+            )}
+          </g>
         </svg>
 
         {/* --- NODE BLOCKS OVERLAYED --- */}
 
         {/* 1. AC GRID NODE (138kV) */}
         <div 
-          className={`absolute p-2.5 rounded-lg border text-white font-mono text-xs z-10 text-center ${
+          className={`absolute p-2.5 rounded-lg border text-white font-mono text-xs z-10 text-center transition-all duration-300 ${
             activeFault === 'Curto AC 138kV'
               ? 'bg-[#0e0202] border-red-900 text-red-350 animate-pulse'
               : 'bg-[#0f0f0f] border-[#262626]'
-          }`}
+          } ${voltageLayers.hv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'}`}
           style={{ left: '20%', top: '10%', transform: 'translate(-50%, -50%)' }}
         >
           <div className="text-[9px] text-blue-400 font-bold">Rede Conexão</div>
@@ -307,7 +325,9 @@ export default function SingleLineDiagram({
 
         {/* 2. TRANSFORMER T1 VIEW */}
         <div 
-          className="absolute font-mono text-[9px] text-slate-400 z-10 text-left bg-[#050505]/80 p-1.5 rounded border border-[#262626]/35"
+          className={`absolute font-mono text-[9px] text-slate-400 z-10 text-left bg-[#050505]/80 p-1.5 rounded border border-[#262626]/35 transition-all duration-300 ${
+            voltageLayers.mv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'
+          }`}
           style={{ left: '31%', top: '31%', transform: 'translate(-50%, -50%)' }}
         >
           <p className="font-bold text-slate-300">Transformador T1</p>
@@ -320,11 +340,11 @@ export default function SingleLineDiagram({
 
         {/* 4. RECTIFIER CONVERTER BLOCK */}
         <div 
-          className={`absolute p-3 rounded-lg border text-white font-mono text-xs text-center w-32 ${
+          className={`absolute p-3 rounded-lg border text-white font-mono text-xs text-center w-32 transition-all duration-300 ${
             isRectifierActive 
               ? 'bg-[#0f0f0f] border-orange-500/40' 
               : 'bg-[#0f0f0f] border-[#262626] text-slate-450'
-          }`}
+          } ${voltageLayers.mv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'}`}
           style={{ left: '20%', top: '70%', transform: 'translate(-50%, -50%)' }}
         >
           <div className="text-[9px] text-amber-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
@@ -349,7 +369,9 @@ export default function SingleLineDiagram({
 
         {/* 5. SOLAR SOURCE */}
         <div 
-          className="absolute bg-[#0f0f0f] border border-[#262626] p-3 rounded-lg flex flex-col items-center text-center w-36"
+          className={`absolute bg-[#0f0f0f] border border-[#262626] p-3 rounded-lg flex flex-col items-center text-center w-36 transition-all duration-300 ${
+            voltageLayers.lv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'
+          }`}
           style={{ left: '50%', top: '18%', transform: 'translate(-50%, -50%)' }}
         >
           <div className="text-orange-400 flex items-center gap-1.5 text-xs font-bold mb-1 font-sans">
@@ -359,7 +381,7 @@ export default function SingleLineDiagram({
           <div className="font-mono text-[10px] text-slate-300">
             <div>Irrad: <span className="text-slate-100 font-semibold">{telemetry.solarIrradiance.toFixed(0)} W/m²</span></div>
             <div>Geração: <span className="text-orange-420 font-bold">{telemetry.solarPowerKw.toFixed(1)} kW</span></div>
-            <div className="text-slate-500 text-[9px] mt-0.5">{telemetry.solarVoltage.toFixed(0)}V | {telemetry.solarCurrent.toFixed(1)}A</div>
+            <div className="text-slate-550 text-[9px] mt-0.5">{telemetry.solarVoltage.toFixed(0)}V | {telemetry.solarCurrent.toFixed(1)}A</div>
           </div>
         </div>
 
@@ -368,7 +390,9 @@ export default function SingleLineDiagram({
 
         {/* 6. BATTERY SYSTEM (BESS) */}
         <div 
-          className="absolute bg-[#0f0f0f] border border-[#262626] p-3 rounded-lg flex flex-col items-center text-center w-38"
+          className={`absolute bg-[#0f0f0f] border border-[#262626] p-3 rounded-lg flex flex-col items-center text-center w-38 transition-all duration-300 ${
+            voltageLayers.lv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'
+          }`}
           style={{ left: '80%', top: '18%', transform: 'translate(-50%, -50%)' }}
         >
           <div className="text-indigo-400 flex items-center gap-1.5 text-xs font-bold mb-1 font-sans">
@@ -417,7 +441,9 @@ export default function SingleLineDiagram({
 
         {/* 7. CORE 800V DC BUS DISPLAY LABEL */}
         <div 
-          className="absolute bg-[#0f0f0f] border-2 border-orange-500/80 py-1.5 px-3 rounded-lg shadow-xl text-center z-20 font-mono w-44"
+          className={`absolute bg-[#0f0f0f] border-2 border-orange-500/80 py-1.5 px-3 rounded-lg shadow-xl text-center z-20 font-mono w-44 transition-all duration-300 ${
+            voltageLayers.lv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'
+          }`}
           style={{ left: '50%', top: '86%', transform: 'translate(-50%, -50%)' }}
         >
           <div className="text-[9px] text-orange-400 font-bold uppercase tracking-widest">Barramento Principal</div>
@@ -431,7 +457,9 @@ export default function SingleLineDiagram({
 
         {/* 8. LOAD 1 */}
         <div 
-          className="absolute bg-[#0f0f0f] border border-[#262626] p-2.5 rounded-lg flex flex-col items-center text-center max-w-[140px]"
+          className={`absolute bg-[#0f0f0f] border border-[#262626] p-2.5 rounded-lg flex flex-col items-center text-center max-w-[140px] transition-all duration-300 ${
+            voltageLayers.lv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'
+          }`}
           style={{ left: '35%', top: '92%', transform: 'translate(-50%, 0%)' }}
         >
           <div className="text-xs font-bold text-slate-350 font-sans">Carga Industrial 1</div>
@@ -443,7 +471,9 @@ export default function SingleLineDiagram({
 
         {/* 9. LOAD 2 */}
         <div 
-          className="absolute bg-[#0f0f0f] border border-[#262626] p-2.5 rounded-lg flex flex-col items-center text-center max-w-[140px]"
+          className={`absolute bg-[#0f0f0f] border border-[#262626] p-2.5 rounded-lg flex flex-col items-center text-center max-w-[140px] transition-all duration-300 ${
+            voltageLayers.lv ? 'opacity-100 scale-100' : 'opacity-[0.12] scale-95 pointer-events-none filter saturate-55'
+          }`}
           style={{ left: '65%', top: '92%', transform: 'translate(-50%, 0%)' }}
         >
           <div className="text-xs font-bold text-slate-350 font-sans">Carga Inversora 2</div>
@@ -452,18 +482,18 @@ export default function SingleLineDiagram({
             <div className="text-slate-550">{telemetry.dcLoad2Current.toFixed(1)} A @ {telemetry.dcLoad2Voltage.toFixed(0)}V</div>
           </div>
         </div>
-
-        {/* Fault Warnings Overlay */}
-        {activeFault !== 'Nenhum' && (
-          <div className="absolute top-4 left-4 bg-[#0e0202]/95 border border-red-900 text-red-200 py-2 px-3.5 rounded-lg shadow-2xl flex items-center gap-2.5 z-30 animate-bounce">
-            <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
-            <div className="text-left">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">ANOMALIA DETECTADA</div>
-              <div className="text-xs font-bold font-mono">{activeFault}</div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Fault Warnings Overlay */}
+      {activeFault !== 'Nenhum' && (
+        <div className="absolute top-4 left-4 bg-[#0e0202]/95 border border-red-900 text-red-200 py-2 px-3.5 rounded-lg shadow-2xl flex items-center gap-2.5 z-30 animate-bounce">
+          <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
+          <div className="text-left">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">ANOMALIA DETECTADA</div>
+            <div className="text-xs font-bold font-mono">{activeFault}</div>
+          </div>
+        </div>
+      )}
 
       {/* Interactive Legend / Note */}
       <div className="bg-[#050505]/40 border border-[#262626]/50 mt-3 p-2.5 rounded-lg text-xs leading-relaxed text-slate-400 flex items-center gap-2">

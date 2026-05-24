@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Telemetry, 
   NetworkPacket, 
@@ -39,6 +39,14 @@ export default function App() {
     );
   };
 
+  // Hitachi ADMS & High-Performance HMI (ISA-101) State Extensions
+  const [simulationMode, setSimulationMode] = useState<'REALITY' | 'STUDY'>('REALITY');
+  const [voltageLayers, setVoltageLayers] = useState<{ hv: boolean; mv: boolean; lv: boolean }>({
+    hv: true,
+    mv: true,
+    lv: true,
+  });
+
   // 1. Core States for Substation breakers and switches
   const [breakers, setBreakers] = useState({
     cb_ac: 'CLOSED' as SwitchState,
@@ -57,6 +65,33 @@ export default function App() {
   
   const [activeFault, setActiveFault] = useState<string>('Nenhum');
   const [timeSyncMode, setTimeSyncMode] = useState<SyncProtocol>('PTP');
+
+  // Dynamic Network State Estimation convergence & Island Count
+  const computedNetworkState = useMemo(() => {
+    let numIslands = 1;
+    let isConvergent = true;
+    let convergenceStatus = 'ESTIMAÇÃO CONVERGIDA';
+
+    // If there are multiple active feeds that are NOT connected
+    const acOnline = breakers.cb_ac === 'CLOSED' && activeFault !== 'Curto AC 138kV';
+    const solarOnline = breakers.cb_solar === 'CLOSED';
+    const bessOnline = breakers.cb_bess === 'CLOSED';
+
+    if (!acOnline && (solarOnline || bessOnline)) {
+      numIslands = 2; // Islanded microgrid mode
+      convergenceStatus = 'CONVERGIDO (ILHADO)';
+    } else if (!acOnline && !solarOnline && !bessOnline) {
+      numIslands = 0; // Blackout
+      isConvergent = false;
+      convergenceStatus = 'DIVERGENTE - BLACKOUT DETECTADO';
+    } else if (activeFault !== 'Nenhum' && activeFault !== 'Filtro Harmônicas Sobrecarga') {
+      numIslands = 1;
+      isConvergent = false;
+      convergenceStatus = 'RE-ESTIMANDO SOB FALHA';
+    }
+
+    return { isConvergent, numIslands, convergenceStatus };
+  }, [breakers, activeFault]);
   
   // 3. Contact resistance fault injections (for thermography)
   const [simulatedFaultHotspots, setSimulatedFaultHotspots] = useState<Record<string, boolean>>({
@@ -892,6 +927,8 @@ export default function App() {
         systemTime={getCurrentFormattedTime()}
         guiStyle={guiStyle}
         onChangeGuiStyle={handleGuiStyleChange}
+        simulationMode={simulationMode}
+        onChangeSimulationMode={setSimulationMode}
       />
 
       {/* 2. Responsive Multi-Segment Navigation Tab Selector */}
@@ -1032,6 +1069,7 @@ export default function App() {
                 onToggleBreaker={handleToggleBreaker}
                 activeFault={activeFault}
                 guiStyle={guiStyle}
+                voltageLayers={voltageLayers}
               />
             </div>
             <div className="xl:col-span-5 h-full">
@@ -1061,6 +1099,9 @@ export default function App() {
                 timeSyncMode={timeSyncMode}
                 onChangeTimeSyncMode={handleChangeTimeSyncMode}
                 guiStyle={guiStyle}
+                voltageLayers={voltageLayers}
+                onChangeVoltageLayers={setVoltageLayers}
+                networkState={computedNetworkState}
               />
             </div>
           </div>

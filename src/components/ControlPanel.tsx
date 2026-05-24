@@ -18,6 +18,9 @@ interface ControlPanelProps {
   timeSyncMode: SyncProtocol;
   onChangeTimeSyncMode: (mode: SyncProtocol) => void;
   guiStyle?: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
+  voltageLayers?: { hv: boolean; mv: boolean; lv: boolean };
+  onChangeVoltageLayers?: (layers: { hv: boolean; mv: boolean; lv: boolean }) => void;
+  networkState?: { isConvergent: boolean; numIslands: number; convergenceStatus: string };
 }
 
 export default function ControlPanel({
@@ -36,6 +39,9 @@ export default function ControlPanel({
   timeSyncMode,
   onChangeTimeSyncMode,
   guiStyle = 'HITACHI_ADMS',
+  voltageLayers = { hv: true, mv: true, lv: true },
+  onChangeVoltageLayers = () => {},
+  networkState = { isConvergent: true, numIslands: 1, convergenceStatus: 'CONVERGIDO' },
 }: ControlPanelProps) {
   const isClassic = guiStyle === 'CLASSIC_SCADA';
   
@@ -306,6 +312,76 @@ export default function ControlPanel({
           </div>
           
         </div>
+
+        {/* --- ADMS HITACHI POWER FLOW & LAYERS CARD --- */}
+        {!isClassic && (
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#262626]/80 pt-4 mt-2">
+            {/* Camadas de Tensão Box */}
+            <div className="bg-[#050505] border border-[#262626] rounded-lg p-3">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#22d3ee] flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#22d3ee]" />
+                Camadas de Visibilidade (ISA-101 HMI)
+              </span>
+              <p className="text-[10px] text-slate-500 mt-1 mb-3">Ligue/Desligue camadas para destacar o fluxo elétrico pertinente.</p>
+              
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-mono font-bold text-slate-300">
+                  <input 
+                    type="checkbox" 
+                    checked={voltageLayers.hv} 
+                    onChange={(e) => onChangeVoltageLayers({ ...voltageLayers, hv: e.target.checked })}
+                    className="rounded border-[#262626] text-cyan-400 focus:ring-0 bg-[#121212] h-4 w-4"
+                  />
+                  AT (138kV)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-mono font-bold text-slate-300">
+                  <input 
+                    type="checkbox" 
+                    checked={voltageLayers.mv} 
+                    onChange={(e) => onChangeVoltageLayers({ ...voltageLayers, mv: e.target.checked })}
+                    className="rounded border-[#262626] text-cyan-400 focus:ring-0 bg-[#121212] h-4 w-4"
+                  />
+                  MT (13.8kV)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-mono font-bold text-slate-300">
+                  <input 
+                    type="checkbox" 
+                    checked={voltageLayers.lv} 
+                    onChange={(e) => onChangeVoltageLayers({ ...voltageLayers, lv: e.target.checked })}
+                    className="rounded border-[#262626] text-cyan-400 focus:ring-0 bg-[#121212] h-4 w-4"
+                  />
+                  BT (800V)
+                </label>
+              </div>
+            </div>
+
+            {/* Estado da Rede (State Estimation Convergency & Islands status) */}
+            <div className="bg-[#050505] border border-[#262626] rounded-lg p-3 flex flex-col justify-between">
+              <div>
+                <span className={`text-[10px] font-mono font-bold uppercase tracking-widest flex items-center gap-1.5 ${networkState.isConvergent ? 'text-emerald-450' : 'text-rose-500 animate-pulse'}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${networkState.isConvergent ? 'bg-emerald-450' : 'bg-red-500 animate-ping'}`} />
+                  Análise DMS: Estado de Rede ADMS
+                </span>
+                
+                <div className="grid grid-cols-2 gap-y-1 mt-2 text-[11px] font-mono">
+                  <span className="text-slate-500 font-bold">Estimador:</span>
+                  <span className={`text-right font-bold ${networkState.isConvergent ? 'text-emerald-450' : 'text-rose-450'}`}>
+                    {networkState.convergenceStatus}
+                  </span>
+
+                  <span className="text-slate-500 font-bold">Ilhas Ativas:</span>
+                  <span className="text-right font-extrabold text-slate-200">
+                    {networkState.numIslands} {networkState.numIslands === 2 ? '(Ilhado Solar/BESS)' : networkState.numIslands === 0 ? '(Sem Tensão)' : '(Sincronizado Grid)'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-[9.5px] font-mono text-slate-500 bg-[#121212] px-2 py-1 rounded border border-[#262626]/60 mt-2 leading-tight">
+                Análise de Redes Avançada (Hitachi Network Manager ADMS DMS). Computado sobre rede unifilar local.
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
 

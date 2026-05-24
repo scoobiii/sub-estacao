@@ -9,6 +9,8 @@ interface HeaderProps {
   systemTime: string;
   guiStyle: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
   onChangeGuiStyle: (style: 'CLASSIC_SCADA' | 'HITACHI_ADMS') => void;
+  simulationMode?: 'REALITY' | 'STUDY';
+  onChangeSimulationMode?: (mode: 'REALITY' | 'STUDY') => void;
 }
 
 export default function Header({
@@ -19,6 +21,8 @@ export default function Header({
   systemTime,
   guiStyle,
   onChangeGuiStyle,
+  simulationMode = 'REALITY',
+  onChangeSimulationMode = () => {},
 }: HeaderProps) {
   const isClassic = guiStyle === 'CLASSIC_SCADA';
 
@@ -93,6 +97,41 @@ export default function Header({
               title="Muda para interface moderna comercial Hitachi ADMS Network Manager"
             >
               Hitachi ADMS
+            </button>
+          </div>
+        </div>
+
+        {/* STUDY VS. REALITY SIMULATION TOGGLE */}
+        <div className={`p-1.5 rounded-lg flex items-center gap-2 ${
+          isClassic 
+            ? 'bg-[#151921] border-2 border-[#12151b] text-slate-350' 
+            : 'bg-[#121212] border border-[#262626] text-white'
+        }`}>
+          <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500 font-bold pl-1.5">
+            Modo Operação
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onChangeSimulationMode('REALITY')}
+              className={`px-2 py-0.5 text-[9.5px] uppercase font-mono font-bold cursor-pointer rounded transition-all ${
+                simulationMode === 'REALITY'
+                  ? (isClassic ? 'bg-[#22c55e] text-white' : 'bg-emerald-500 text-slate-950 font-extrabold')
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Opera o barramento com dados em tempo real da rede física"
+            >
+              Realidade
+            </button>
+            <button
+              onClick={() => onChangeSimulationMode('STUDY')}
+              className={`px-2 py-0.5 text-[9.5px] uppercase font-mono font-bold cursor-pointer rounded transition-all ${
+                simulationMode === 'STUDY'
+                  ? (isClassic ? 'bg-purple-700 text-white animate-pulse' : 'bg-purple-600 text-white font-extrabold')
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Muda o HMI e os IEDs para ambiente de estudo de carga ou contingência offline"
+            >
+              Estudo
             </button>
           </div>
         </div>
