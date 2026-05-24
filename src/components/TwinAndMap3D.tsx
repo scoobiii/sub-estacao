@@ -22,7 +22,8 @@ import {
   Sliders,
   GitBranch,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  Flame
 } from 'lucide-react';
 import { Substation, ThermogramHotspot, Operator, Telemetry } from '../types';
 
@@ -121,11 +122,35 @@ export default function TwinAndMap3D({
   const [studyNationalBlackout, setStudyNationalBlackout] = useState(false);
   const [studyN1Redundancy, setStudyN1Redundancy] = useState(true);
 
+  // Expanded Study Lab States
+  const [loadScaleFactor, setLoadScaleFactor] = useState<number>(1.0); // 0.2x to 2.5x neighborhood load multiplier
+  const [tempAlarmThreshold, setTempAlarmThreshold] = useState<number>(65.0); // °C limit
+  const [maneuverBypassLatency, setManeuverBypassLatency] = useState<number>(8); // ms redundant switchover
+  const [activeAnomalySimulation, setActiveAnomalySimulation] = useState<'NONE' | 'OVERLOAD' | 'SYNC_LOSS' | 'CT_SATURATION'>('NONE');
+
   // Maintenance states
   const [maintTransformer, setMaintTransformer] = useState<'ACTIVE' | 'MAINTENANCE' | 'EXPANSION'>('ACTIVE');
   const [maintRectifier, setMaintRectifier] = useState<'ACTIVE' | 'MAINTENANCE' | 'EXPANSION'>('ACTIVE');
   const [maintBess, setMaintBess] = useState<'ACTIVE' | 'MAINTENANCE' | 'EXPANSION'>('ACTIVE');
   const [maintSolar, setMaintSolar] = useState<'ACTIVE' | 'MAINTENANCE' | 'EXPANSION'>('ACTIVE');
+
+  // Expanded Maintenance Replacement/Swap States
+  const [maintSwaps, setMaintSwaps] = useState({
+    oilReplaced: false,
+    filterReplaced: false,
+    sensorsReplaced: false,
+    fuseReplaced: false
+  });
+
+  // Expanded Maintenance Calibration Parameters
+  const [maintFanThreshold, setMaintFanThreshold] = useState<number>(45.0); // °C cooling trigger
+  const [maintNitrogenPressure, setMaintNitrogenPressure] = useState<number>(15.0); // psi
+  const [maintShuntResist, setMaintShuntResist] = useState<number>(0.15); // Ohm
+
+  // Expanded Maintenance Field Test States
+  const [activeMaintTest, setActiveMaintTest] = useState<'NONE' | 'MEGGER' | 'SECONDARY_INJECTION'>('NONE');
+  const [meggerResult, setMeggerResult] = useState<{ status: string; valueMOhms: number; label: string } | null>(null);
+  const [secInjectionStatus, setSecInjectionStatus] = useState<string | null>(null);
 
   // Custom configuration parameters
   const [customFreqLimit, setCustomFreqLimit] = useState<number>(60.5); // Hz limit
@@ -1463,16 +1488,165 @@ export default function TwinAndMap3D({
               </div>
             </div>
 
+            {/* Real World (RW) Telemetry Bento Matrix */}
+            <div className="lg:col-span-12 bg-[#111115] border border-[#222] rounded-xl p-4 mt-1 text-left">
+              <div className="flex items-center justify-between border-b border-[#222] pb-3 mb-4">
+                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 font-sans">
+                  <Activity className="h-4 w-4 text-emerald-400 animate-pulse" />
+                  Mundo Real (RW) - Matriz de Monitoramento de Todos os Parâmetros Operacionais
+                </span>
+                <span className="text-[9px] font-mono text-slate-500 uppercase font-extrabold">Real-World Telemetry Data</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                
+                {/* 1. Rede Externa CA */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-2.5">
+                  <span className="text-[10px] text-slate-350 uppercase font-bold font-mono tracking-wide border-b border-[#1c1c20] pb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 bg-cyan-400 rounded-full animate-ping" />
+                    1. Rede Externa CA Enel
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tensão Nominal:</span>
+                      <span className="text-white font-mono font-bold">{telemetry.gridVoltage.toFixed(1)} kV</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Frequência:</span>
+                      <span className="text-emerald-400 font-mono font-bold">{telemetry.gridFreq.toFixed(2)} Hz</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Potência Ativa:</span>
+                      <span className="text-cyan-400 font-mono font-bold">{telemetry.gridActivePower.toFixed(2)} MW</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Potência Reativa:</span>
+                      <span className="text-slate-400 font-mono">{telemetry.gridReactivePower.toFixed(2)} MVar</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Conversor Retificador */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-2.5">
+                  <span className="text-[10px] text-slate-350 uppercase font-bold font-mono tracking-wide border-b border-[#1c1c20] pb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 bg-blue-400 rounded-full" />
+                    2. Retificador AC/DC C1
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tensão Saída:</span>
+                      <span className="text-white font-mono">{telemetry.rectifierVoltageOut.toFixed(1)} Vcc</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Corrente CC:</span>
+                      <span className="text-blue-400 font-mono font-bold">{Math.round(telemetry.rectifierCurrentOut)} Acc</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Temperatura:</span>
+                      <span className={`font-mono font-bold ${telemetry.rectifierTempCelsius > 65 ? 'text-amber-400 animate-pulse' : 'text-slate-300'}`}>
+                        {telemetry.rectifierTempCelsius.toFixed(1)} °C
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Eficiência CC:</span>
+                      <span className="text-slate-300 font-mono">{telemetry.rectifierEfficiency.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Banco Baterias BESS */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-2.5">
+                  <span className="text-[10px] text-slate-355 uppercase font-bold font-mono tracking-wide border-b border-[#1c1c20] pb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-pulse" />
+                    3. Baterias BESS LFP
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tensão Acoplamento:</span>
+                      <span className="text-white font-mono">{telemetry.bessVoltage.toFixed(1)} Vcc</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Corrente Líquida:</span>
+                      <span className={`font-mono font-bold ${telemetry.bessCurrent > 0 ? 'text-amber-400' : telemetry.bessCurrent < 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                        {telemetry.bessCurrent >= 0 ? '+' : ''}{telemetry.bessCurrent.toFixed(1)} Acc
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Percentual SoC:</span>
+                      <span className="text-slate-200 font-mono font-bold">{telemetry.bessSoc.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Temperatura Interna:</span>
+                      <span className="text-slate-400 font-mono">{telemetry.bessTemp.toFixed(1)} °C</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Geração Solar PV1 */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-2.5">
+                  <span className="text-[10px] text-slate-355 uppercase font-bold font-mono tracking-wide border-b border-[#1c1c20] pb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 bg-yellow-400 rounded-full animate-pulse" />
+                    4. Painel Solar PV1
+                  </span>
+                  <div className="space-y-1.5 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tensão Arranjo:</span>
+                      <span className="text-white">{telemetry.solarVoltage.toFixed(1)} Vcc</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Corrente Inversor:</span>
+                      <span className="text-white">{telemetry.solarCurrent.toFixed(1)} Acc</span>
+                    </div>
+                    <div className="flex justify-between font-sans">
+                      <span className="text-slate-400">Potência Gerada:</span>
+                      <span className="text-[#fbbf24] font-bold font-mono">{telemetry.solarPowerKw.toFixed(1)} kW</span>
+                    </div>
+                    <div className="flex justify-between font-sans">
+                      <span className="text-slate-400">Irradiação Local:</span>
+                      <span className="text-slate-400 font-bold font-mono">{telemetry.solarIrradiance.toFixed(0)} W/m²</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Cargas Conectadas */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-2.5">
+                  <span className="text-[10px] text-slate-355 uppercase font-bold font-mono tracking-wide border-b border-[#1c1c20] pb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 bg-orange-400 rounded-full animate-pulse" />
+                    5. Demanda das Cargas
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Carga Industrial:</span>
+                      <span className="text-slate-200 font-mono">{telemetry.dcLoad1PowerKw.toFixed(1)} kW</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Carga Comercial:</span>
+                      <span className="text-slate-300 font-mono">{telemetry.dcLoad2PowerKw.toFixed(1)} kW</span>
+                    </div>
+                    <div className="flex justify-between font-sans flex items-center justify-between">
+                      <span className="text-slate-400">Data Center ODATA:</span>
+                      <span className="text-slate-100 font-bold font-mono">{computedOdataLoadKw} kW</span>
+                    </div>
+                    <div className="flex justify-between font-sans flex items-center justify-between">
+                      <span className="text-slate-500">Barramento Geral:</span>
+                      <span className="text-slate-300 font-mono">{telemetry.bus800VdcVoltage.toFixed(1)} Vcc</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
           </div>
         )}
 
         {/* --- 2. MODO ESTUDO DISPLAY --- */}
         {simulationMode === 'STUDY' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch animate-fade-in">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch animate-fade-in text-left">
             
             {/* Simulation controllers (7 Columns) */}
-            <div className="lg:col-span-7 bg-[#111115] border border-[#222] rounded-xl p-4">
-              <div className="flex items-center justify-between border-b border-[#222] pb-3 mb-3.5">
+            <div className="lg:col-span-7 bg-[#111115] border border-[#222] rounded-xl p-4 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-[#222] pb-3 mb-1">
                 <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 font-sans">
                   <Sliders className="h-4 w-4 text-purple-400" />
                   Painel de Injeção de Falhas de Carga de Estudo (Contingência)
@@ -1565,13 +1739,13 @@ export default function TwinAndMap3D({
               </div>
 
               {/* Redundancy Toggle */}
-              <div className="bg-black/40 border border-[#222] p-3.5 rounded-lg mt-4 flex items-center justify-between gap-4 font-sans text-xs">
+              <div className="bg-black/40 border border-[#222] p-3 rounded-lg flex items-center justify-between gap-4 font-sans text-xs">
                 <div className="flex items-start gap-2.5">
                   <GitBranch className={`h-5 w-5 ${studyN1Redundancy ? 'text-emerald-400' : 'text-slate-500'}`} />
                   <div>
                     <span className="text-slate-200 font-bold block">Controle de Redundância Ativa Inteligente N+1</span>
                     <span className="text-slate-500 text-[10px]">
-                      Habilita o desvio instantâneo automático (Bypass secundário) de proteção no IED se ocorrer avaria ou interrupção.
+                      Habilita o desvio instantâneo automático (Bypass secundário) de proteção no IED se ocorrer avaria.
                     </span>
                   </div>
                 </div>
@@ -1594,6 +1768,134 @@ export default function TwinAndMap3D({
                   {studyN1Redundancy ? 'Redundância ON' : 'Redundância OFF'}
                 </button>
               </div>
+
+              {/* NEW: Sliders para Ajustar Parâmetros Didáticos (Ensino) */}
+              <div className="bg-black/20 border border-[#222] p-3 rounded-lg flex flex-col gap-3 font-sans text-xs">
+                <span className="text-slate-200 font-bold flex items-center gap-1.5 border-b border-[#222] pb-1.5">
+                  <Sliders className="h-4 w-4 text-purple-400" />
+                  Ajustar Parâmetros Didáticos (Ambiente de Ensino)
+                </span>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 block font-bold">Fator de Carga do Bairro: <span className="text-purple-400 font-mono">{loadScaleFactor.toFixed(1)}x</span></label>
+                    <input 
+                      type="range" 
+                      min="0.2" 
+                      max="2.5" 
+                      step="0.1" 
+                      value={loadScaleFactor}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setLoadScaleFactor(val);
+                        speakSophiaCustom(`Fator de escala de carga do bairro reajustado para ${val.toFixed(1)} vezes. Veja o impacto no consumo de barramento e na temperatura do transformador.`, "TALKING");
+                      }}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+                    <span className="text-[9px] text-slate-500 block">Aumenta demanda residencial na rede</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 block font-bold">Limite de Alarme Térmico: <span className="text-purple-400 font-mono">{tempAlarmThreshold.toFixed(1)} °C</span></label>
+                    <input 
+                      type="range" 
+                      min="40.0" 
+                      max="90.0" 
+                      step="1.0" 
+                      value={tempAlarmThreshold}
+                      onChange={(e) => {
+                        setTempAlarmThreshold(parseFloat(e.target.value));
+                      }}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+                    <span className="text-[9px] text-slate-500 block">Setpoint para relógio térmico do IED</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 block font-bold">Latência de Desvio N-1: <span className="text-purple-400 font-mono">{maneuverBypassLatency} ms</span></label>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="50" 
+                      step="1" 
+                      value={maneuverBypassLatency}
+                      onChange={(e) => {
+                        setManeuverBypassLatency(parseInt(e.target.value));
+                      }}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+                    <span className="text-[9px] text-slate-500 block">Tempo de reação de bypass secundário</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* NEW: Simulações Didáticas de Falhas de Ensino */}
+              <div className="bg-black/20 border border-[#222] p-3 rounded-lg flex flex-col gap-2.5 font-sans text-xs">
+                <span className="text-slate-200 font-bold flex items-center gap-1.5 border-b border-[#222] pb-1.5">
+                  <Flame className="h-4 w-4 text-purple-400 animate-pulse" />
+                  Simular Anomalias no Universo de Ensino (Perturbação)
+                </span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    onClick={() => {
+                      setActiveAnomalySimulation('OVERLOAD');
+                      speakSophiaCustom("ENSINO - EVENTO DE SOBRECARGA: Simulando pico severo de consumo nas cargas comerciais e industriais. A corrente nos tiristores se aproxima do limite crítico de 800 Ampéres, disparando o alarme de temperatura no IED de controle.", "ALERT");
+                    }}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${
+                      activeAnomalySimulation === 'OVERLOAD'
+                        ? 'bg-red-950/40 text-red-400 border-red-500/40'
+                        : 'bg-black/40 border-[#222] text-slate-450 hover:bg-[#1a1c22]'
+                    }`}
+                  >
+                    ⚡ Sobrecarga Crítica
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveAnomalySimulation('SYNC_LOSS');
+                      speakSophiaCustom("ENSINO - PERDA DE PTP: O relógio GPS mestre perde temporariamente a conexão satélite. O protocolo IEEE 1588 degrada para o modo holdup, e a precisão do timestamping decai de nanosegundos para milisegundos operacionais.", "ALERT");
+                    }}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${
+                      activeAnomalySimulation === 'SYNC_LOSS'
+                        ? 'bg-orange-950/40 text-orange-400 border-orange-500/40'
+                        : 'bg-black/40 border-[#222] text-slate-450 hover:bg-[#1a1c22]'
+                    }`}
+                  >
+                    ⏰ Perda Sincronismo
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveAnomalySimulation('CT_SATURATION');
+                      speakSophiaCustom("ENSINO - SATURAÇÃO DE TC: Simulando alteração na onda senoidal de medição por acúmulo de fluxo magnético no transformador de corrente. O IED de proteção acusa erro nas amostras Sampled Values, gerando harmônicas espúrias.", "ALERT");
+                    }}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${
+                      activeAnomalySimulation === 'CT_SATURATION'
+                        ? 'bg-amber-950/40 text-amber-400 border-amber-500/40'
+                        : 'bg-black/40 border-[#222] text-slate-450 hover:bg-[#1a1c22]'
+                    }`}
+                  >
+                    〰 Saturation de TC
+                  </button>
+                </div>
+
+                {activeAnomalySimulation !== 'NONE' && (
+                  <div className="flex justify-between items-center bg-purple-950/10 border border-purple-500/20 p-2 rounded mt-1 font-mono text-[10px]">
+                    <span className="text-purple-400">Anomalia ativa: <span className="font-bold underline">{activeAnomalySimulation}</span></span>
+                    <button 
+                      onClick={() => {
+                        setActiveAnomalySimulation('NONE');
+                        speakSophiaCustom("Simulação de anomalia evacuada. Parâmetros elétricos e lógicos normalizados.", "CONFIRM");
+                      }}
+                      className="px-2 py-0.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold border border-purple-500/30 rounded cursor-pointer"
+                    >
+                      Remover Simulação
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
 
             {/* Study Results / Technical diagnostics (5 Columns) */}
@@ -1606,6 +1908,11 @@ export default function TwinAndMap3D({
 
                 <div className="space-y-3.5 text-[11px] text-slate-400 leading-normal">
                   <div className="flex justify-between items-center border-b border-[#222]/60 pb-1.5">
+                    <span>SISTEMA DE ENSINO:</span>
+                    <span className="text-purple-400 font-bold">AJUSTES & SIMULAÇÃO ATIVOS</span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-[#222]/60 border-b pb-1.5">
                     <span>STATUS SUPRIMENTO TI (ODATA):</span>
                     <span className={`font-bold ${studyNationalBlackout ? 'text-purple-400 animate-pulse' : 'text-emerald-400'}`}>
                       {studyNationalBlackout ? 'diesel GMG (100% redundante)' : 'REDE FÍSICA CA+SOLAR'}
@@ -1620,14 +1927,37 @@ export default function TwinAndMap3D({
                   </div>
 
                   <div className="flex justify-between items-center border-b border-[#222]/60 pb-1.5">
-                    <span>LATÊNCIA DE COMUTAÇÃO GOOSE:</span>
-                    <span className="text-slate-300">4.18 ms (Meta IEC 61850 &lt; 15ms)</span>
+                    <span>DEMANDA AMBIENTE DE ENSINO:</span>
+                    <span className="text-white font-bold">{(1920 * loadScaleFactor).toFixed(0)} kW (Escopo)</span>
                   </div>
 
                   <div className="flex justify-between items-center border-b border-[#222]/60 pb-1.5">
-                    <span>CAPACIDADE DO BESS (BATERIA):</span>
-                    <span className="text-slate-300">Reserva de Emergência Ativada</span>
+                    <span>TEMPERATURA ALARME DE ENSINO:</span>
+                    <span className="text-[#fbbf24] font-bold">{tempAlarmThreshold.toFixed(1)} °C</span>
                   </div>
+
+                  <div className="flex justify-between items-center border-b border-[#222]/60 pb-1.5">
+                    <span>LATÊNCIA DE COMUTAÇÃO GOOSE:</span>
+                    <span className="text-slate-350">{maneuverBypassLatency} ms (Meta IEC 61850 &lt; 15ms)</span>
+                  </div>
+
+                  {activeAnomalySimulation === 'OVERLOAD' && (
+                    <div className="p-2.5 rounded border border-red-500/20 bg-red-950/20 text-[10px] text-red-400 leading-relaxed font-sans mt-3">
+                      ⚠️ <strong>Estudo de Sobrecarga Ativo:</strong> Carga simulada em {((telemetry.dcLoad1PowerKw + telemetry.dcLoad2PowerKw + computedOdataLoadKw) * loadScaleFactor).toFixed(1)} kW ultrapassa o limite de operação nominal. Risco elevado na junta do retificador AC/DC C1.
+                    </div>
+                  )}
+
+                  {activeAnomalySimulation === 'SYNC_LOSS' && (
+                    <div className="p-2.5 rounded border border-orange-500/20 bg-orange-950/20 text-[10px] text-orange-400 leading-relaxed font-sans mt-3">
+                      ⚠️ <strong>Estudo de Desconexão GPS:</strong> PTP em Holdup mode. O IED entra em contingência de tempo, monitorando oscilações a nível local via MMS. Perda de registro diferencial.
+                    </div>
+                  )}
+
+                  {activeAnomalySimulation === 'CT_SATURATION' && (
+                    <div className="p-2.5 rounded border border-amber-500/20 bg-amber-950/20 text-[10px] text-amber-400 leading-relaxed font-sans mt-3">
+                      ⚠️ <strong>Estudo de Saturação:</strong> Onda distorcida por saturação física do núcleo do transformador de corrente. Recomenda-se aumentar a banda morta ou reajustar o limiar diferencial de proteção.
+                    </div>
+                  )}
 
                   {studyNationalBlackout && (
                     <div className="p-2.5 rounded border border-purple-500/25 bg-purple-500/5 text-[10px] text-purple-400 leading-relaxed font-sans mt-3">
@@ -1638,7 +1968,7 @@ export default function TwinAndMap3D({
               </div>
 
               <div className="mt-4 pt-3.5 border-t border-[#222]/80 text-center text-[10px] text-slate-500">
-                <span>SIMULADOR COMPILADO COM SUCESSO • ESTÁVEL</span>
+                <span>LABORATÓRIO DE ENSINO ATIVO • ESTÁVEL</span>
               </div>
             </div>
 
@@ -1753,6 +2083,137 @@ export default function TwinAndMap3D({
                   </div>
                 ))}
               </div>
+
+              {/* NEW: Troca de Ativos e Componentes Físicos */}
+              <div className="bg-black/20 border border-[#222] p-4 rounded-xl mt-4 font-sans text-xs">
+                <span className="text-slate-200 font-bold flex items-center gap-1.5 border-b border-[#222] pb-2 mb-3">
+                  <Wrench className="h-4 w-4 text-amber-500 animate-pulse" />
+                  Troca de Ativos e Componentes de Campo (Manutenção Corretiva)
+                </span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  {[
+                    { id: 'oil', label: 'Substituir Óleo do T1', key: 'oilReplaced', desc: 'Renova óleo dielétrico isolante de bobinas' },
+                    { id: 'filter', label: 'Trocar Filtro de Harmônicas C1', key: 'filterReplaced', desc: 'Isola picos de corrente tiristorizada' },
+                    { id: 'sensors', label: 'Trocar Sensores de Temp', key: 'sensorsReplaced', desc: 'Estabiliza flutuações e medição RTD' },
+                    { id: 'fuse', label: 'Trocar Fusível de Campo', key: 'fuseReplaced', desc: 'Substitui fusível de acoplador solar PV1' }
+                  ].map(item => {
+                    const active = maintSwaps[item.key as keyof typeof maintSwaps];
+                    return (
+                      <div key={item.id} className="bg-black/40 border border-[#222] p-2.5 rounded-lg flex flex-col justify-between gap-2">
+                        <div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-300">{item.label}</span>
+                            <span className={`text-[8.5px] font-mono font-bold px-1.5 py-0.5 rounded ${active ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-900 text-slate-500'}`}>
+                              {active ? 'CONCLUÍDO' : 'Pendente'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">{item.desc}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setMaintSwaps(prev => ({ ...prev, [item.key]: !active }));
+                            if (!active) {
+                              speakSophiaCustom(`Reposição concluída com sucesso. ${item.label} foi executado e registrado no SCADA. Ativo calibrado em condições nominais ideais de operação.`, "CONFIRM");
+                            } else {
+                              speakSophiaCustom(`Status de reposição do ${item.label} redefinido para pendente.`, "CALM");
+                            }
+                          }}
+                          className={`w-full py-1 rounded text-[10px] font-bold cursor-pointer transition-all border ${
+                            active
+                              ? 'bg-emerald-950/20 border-emerald-550/40 text-emerald-350 hover:bg-emerald-950/30 font-bold'
+                              : 'bg-[#1b1c24] border-[#3a3b4c] text-slate-400 hover:bg-[#252631]'
+                          }`}
+                        >
+                          {active ? 'Desfazer Reposição' : 'Concluir Reposição'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* NEW: Simulação de Ensaios de Campo em Manutenção */}
+              <div className="bg-black/20 border border-[#222] p-4 rounded-xl mt-4 font-sans text-xs">
+                <span className="text-slate-200 font-bold flex items-center gap-1.5 border-b border-[#222] pb-2 mb-3">
+                  <Activity className="h-4 w-4 text-amber-500" />
+                  Simulador de Ensaios e Comissionamento de Campo (Ensaios Elétricos)
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  <div className="bg-black/40 border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-3">
+                    <div>
+                      <span className="font-bold text-slate-200 block">Ensaio de Isolamento (Megohmetro)</span>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+                        Injeta 5.000 Vcc sob as bobinas primárias para atestar resistência da rigidez dielétrica do óleo.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setActiveMaintTest('MEGGER');
+                        setMeggerResult({
+                          status: 'APROVADO',
+                          valueMOhms: Math.floor(5200 + Math.random() * 400),
+                          label: 'Rigidez excelente (> 5000 MΩ). Isolação sem fuga.'
+                        });
+                        speakSophiaCustom("Iniciando varredura dielétrica por megohmetro simulado em T1. Injetando tensão de cinco quilovolts contínuos. Resistência de isolação superior a cinco mil megohms. Estágio aprovado em teste de campo e registrado com segurança.", "CONFIRM");
+                      }}
+                      className="w-full py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer transition-all"
+                    >
+                      Executar Teste Megohmetro
+                    </button>
+                  </div>
+
+                  <div className="bg-black/40 border border-[#222] p-3 rounded-lg flex flex-col justify-between gap-3">
+                    <div>
+                      <span className="font-bold text-slate-200 block">Injeção de Corrente Secundária (IEDs)</span>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+                        Injeta correntes nas bobinas de leitura do relé para calibrar as curvas de sobrecorrente ANSI 50/51.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setActiveMaintTest('SECONDARY_INJECTION');
+                        setSecInjectionStatus('CURVA DE DISPARO VERIFICADA NO IED: TEMPO DE RESPOSTA 1.83ms (ANSI 50)');
+                        speakSophiaCustom("Iniciando aferição de injeção secundária de corrente. Simulando rampas de sobrecorrente no relé de proteção. Tempo de reação de um ponto oitenta e três milissegundos atesta o fechamento da proteção física rápida.", "CONFIRM");
+                      }}
+                      className="w-full py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer transition-all"
+                    >
+                      Simular Injeção de Corrente
+                    </button>
+                  </div>
+                </div>
+
+                {activeMaintTest !== 'NONE' && (
+                  <div className="bg-amber-950/10 border border-amber-500/20 p-2.5 rounded mt-3 text-left font-mono text-[10px] space-y-1">
+                    <div className="flex justify-between font-bold border-b border-amber-500/10 pb-1 text-amber-400">
+                      <span>Resultado do Teste Ativo ({activeMaintTest})</span>
+                      <button 
+                        onClick={() => {
+                          setActiveMaintTest('NONE');
+                          setMeggerResult(null);
+                          setSecInjectionStatus(null);
+                        }}
+                        className="text-[9px] underline hover:text-amber-300 cursor-pointer"
+                      >
+                        Limpar Teste
+                      </button>
+                    </div>
+                    {activeMaintTest === 'MEGGER' && meggerResult && (
+                      <div className="space-y-0.5">
+                        <div className="text-white">Status Isolamento: <span className="text-emerald-400 font-bold">{meggerResult.status}</span></div>
+                        <div className="text-slate-300">Medição: <span className="text-[#fbbf24] font-bold">{meggerResult.valueMOhms} MΩ</span></div>
+                        <div className="text-slate-400 text-[9px]">{meggerResult.label}</div>
+                      </div>
+                    )}
+                    {activeMaintTest === 'SECONDARY_INJECTION' && secInjectionStatus && (
+                      <div className="text-slate-200">
+                        {secInjectionStatus}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Setpoints config parameters forms (5 Columns) */}
@@ -1820,6 +2281,75 @@ export default function TwinAndMap3D({
                     Salvar Parâmetros e Sincronizar IEDs
                   </button>
                 </form>
+
+                {/* NEW: Sliders de Ajuste de Calibração e Comissionamento */}
+                <div className="border border-[#222] bg-black/20 rounded-xl p-3.5 mt-5 text-left font-mono">
+                  <div className="flex items-center justify-between border-b border-[#222] pb-2 mb-3">
+                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 font-sans">
+                      <Sliders className="h-4 w-4 text-amber-500" />
+                      Ajustes de Adiantamento e Calibragem
+                    </span>
+                    <span className="text-[8.5px] text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">CALIBRATION</span>
+                  </div>
+
+                  <div className="space-y-4 font-sans text-xs text-slate-300">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Setpoint Ventilação do T1:</span>
+                        <span className="text-amber-400 font-bold font-mono">{maintFanThreshold.toFixed(1)} °C</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="30"
+                        max="70"
+                        step="1"
+                        value={maintFanThreshold}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setMaintFanThreshold(val);
+                          speakSophiaCustom(`Limite do setpoint de dissipação mecânica forçada redefinido para ${val.toFixed(0)} graus celsius, acelerando ventiladores de refrigeração no transformador central.`, "TALKING");
+                        }}
+                        className="w-full h-1 bg-slate-950 rounded appearance-none cursor-pointer accent-amber-500"
+                      />
+                      <span className="text-[9px] text-slate-500 block">Aciona resfriamento forçado do transformador</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Pressão do Gás Nitrogênio:</span>
+                        <span className="text-amber-400 font-bold font-mono">{maintNitrogenPressure.toFixed(1)} psi</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="5"
+                        max="30"
+                        step="0.5"
+                        value={maintNitrogenPressure}
+                        onChange={(e) => setMaintNitrogenPressure(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-slate-950 rounded appearance-none cursor-pointer accent-amber-500"
+                      />
+                      <span className="text-[9px] text-slate-500 block">Pressurização de colchão inerte contra umidade</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Resistência Shunt Aterra:</span>
+                        <span className="text-amber-400 font-bold font-mono">{maintShuntResist.toFixed(2)} Ohm</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="0.05"
+                        max="0.50"
+                        step="0.01"
+                        value={maintShuntResist}
+                        onChange={(e) => setMaintShuntResist(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-slate-950 rounded appearance-none cursor-pointer accent-amber-500"
+                      />
+                      <span className="text-[9px] text-slate-500 block">Impedância transiente do circuito terra</span>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               {/* LOTO Notice panel */}
