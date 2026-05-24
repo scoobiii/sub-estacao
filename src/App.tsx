@@ -69,6 +69,8 @@ export default function App() {
       ansi59Limit: 145,
       ansi27DCLimitLow: 720,
       ansi59DCLimitHigh: 880,
+      tempLimit: 55,
+      currentLimit: 800,
       gooseAppId: '0x4001',
       gooseVlan: 10,
       ptpDomain: 0,
@@ -83,6 +85,8 @@ export default function App() {
       ansi59Limit: 145,
       ansi27DCLimitLow: 720,
       ansi59DCLimitHigh: 880,
+      tempLimit: 60,
+      currentLimit: 900,
       gooseAppId: '0x3011',
       gooseVlan: 10,
       ptpDomain: 0,
@@ -97,6 +101,8 @@ export default function App() {
       ansi59Limit: 145,
       ansi27DCLimitLow: 720,
       ansi59DCLimitHigh: 880,
+      tempLimit: 50,
+      currentLimit: 1000,
       gooseAppId: '0x2022',
       gooseVlan: 10,
       ptpDomain: 0,
@@ -323,6 +329,8 @@ export default function App() {
         ansi59Limit: 145,
         ansi27DCLimitLow: 720,
         ansi59DCLimitHigh: 880,
+        tempLimit: 55,
+        currentLimit: 800,
         gooseAppId: '0x4001',
         gooseVlan: 10,
         ptpDomain: 0,
@@ -337,6 +345,8 @@ export default function App() {
         ansi59Limit: 145,
         ansi27DCLimitLow: 720,
         ansi59DCLimitHigh: 880,
+        tempLimit: 60,
+        currentLimit: 900,
         gooseAppId: '0x3011',
         gooseVlan: 10,
         ptpDomain: 0,
@@ -351,6 +361,8 @@ export default function App() {
         ansi59Limit: 145,
         ansi27DCLimitLow: 720,
         ansi59DCLimitHigh: 880,
+        tempLimit: 50,
+        currentLimit: 1000,
         gooseAppId: '0x2022',
         gooseVlan: 10,
         ptpDomain: 0,
@@ -751,6 +763,57 @@ export default function App() {
     }
   ];
 
+  // Dynamic live measurement maps for each individual IED Device
+  const iedReadings: Record<string, { current: number; temp: number }> = {
+    MU_BAY1: {
+      current: breakers.cb_ac === 'CLOSED' ? (activeFault === 'Curto AC 138kV' ? 1250 : Math.round(telemetry.gridActivePower * 1000)) : 0,
+      temp: Math.round((32.0 + (breakers.cb_ac === 'CLOSED' ? (activeFault === 'Curto AC 138kV' ? 1250 : Math.round(telemetry.gridActivePower * 1000)) : 0) / 32) * 10) / 10
+    },
+    PROT_FEEDER: {
+      current: breakers.cb_rect === 'CLOSED' ? Math.round(telemetry.rectifierCurrentOut) : 0,
+      temp: Math.round(telemetry.rectifierTempCelsius * 10) / 10
+    },
+    BCU_DC_800V: {
+      current: breakers.cb_bess === 'CLOSED' || breakers.cb_rect === 'CLOSED' ? Math.round(Math.abs(telemetry.bus800VdcCurrent)) : 0,
+      temp: Math.round(Math.max(25.4, 25.4 + (telemetry.bus800VdcCurrent / 450) * 4.8 + (simulatedFaultHotspots.bus_coupling ? (telemetry.bus800VdcCurrent / 120) * 9.5 : 0)) * 10) / 10
+    }
+  };
+
+  const activeIEDAlarms: Array<{
+    iedId: string;
+    iedName: string;
+    type: 'TEMPERATURA' | 'CORRENTE';
+    value: number;
+    limit: number;
+    unit: string;
+  }> = [];
+
+  ieds.forEach(ied => {
+    const r = iedReadings[ied.id];
+    if (r) {
+      if (r.temp > (ied.tempLimit ?? 55)) {
+        activeIEDAlarms.push({
+          iedId: ied.id,
+          iedName: ied.name,
+          type: 'TEMPERATURA',
+          value: r.temp,
+          limit: ied.tempLimit ?? 55,
+          unit: '°C'
+        });
+      }
+      if (r.current > (ied.currentLimit ?? 800)) {
+        activeIEDAlarms.push({
+          iedId: ied.id,
+          iedName: ied.name,
+          type: 'CORRENTE',
+          value: r.current,
+          limit: ied.currentLimit ?? 800,
+          unit: 'A'
+        });
+      }
+    }
+  });
+
   const handleSelectSubstation = (id: string) => {
     setSelectedSubstationId(id);
     const targetSub = substations.find(s => s.id === id);
@@ -863,6 +926,33 @@ export default function App() {
         </button>
       </nav>
 
+      {/* Dynamic Alarm Limits Notification Bar */}
+      {activeIEDAlarms.length > 0 && (
+        <div className="bg-red-950/40 border-b border-red-500/25 px-6 py-2.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 animate-pulse shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex h-3.5 w-3.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-80"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600 border border-white/20"></span>
+            </div>
+            <div className="text-xs text-red-200">
+              <span className="font-extrabold uppercase font-sans tracking-wide text-[9px] bg-red-900/60 border border-red-700/30 text-red-400 px-1.5 py-0.5 rounded mr-2 inline-block">
+                ALERTA CRÍTICO: IED SOBRE-LIMITE
+              </span>
+              <span className="font-mono text-[11px] leading-relaxed">
+                {activeIEDAlarms.map((alm, idx) => (
+                  <span key={idx} className="after:content-[',_'] last:after:content-none font-bold">
+                    {alm.iedName} ({alm.type === 'TEMPERATURA' ? 'Temp. Elevada:' : 'Corrente Alta:'} {alm.value} {alm.unit} &gt; Limite {alm.limit} {alm.unit})
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+          <div className="text-[10px] font-mono text-red-400/80 bg-red-950/60 px-2.5 py-1 rounded border border-red-900/40">
+            Relatório de Telemetria SCADA • Código Erro: PTP-ANSI-TRIP
+          </div>
+        </div>
+      )}
+
       {/* 3. Main Screen Workspace */}
       <main className="flex-grow p-4 md:p-6 overflow-y-auto space-y-6">
         
@@ -937,6 +1027,7 @@ export default function App() {
                 ieds={ieds}
                 onUpdateIedConfig={handleUpdateIedConfig}
                 onResetIeds={handleResetIeds}
+                iedReadings={iedReadings}
               />
             </div>
           </div>

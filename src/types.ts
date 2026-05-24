@@ -67,6 +67,8 @@ export interface IEDConfig {
   ansi59Limit: number;    // Overvoltage AC limit (V) - e.g., 145kV
   ansi27DCLimitLow: number;  // Undervoltage 800VDC threshold (V) - e.g., 720V
   ansi59DCLimitHigh: number; // Overvoltage 800VDC threshold (V) - e.g., 880V
+  tempLimit: number;       // Temperature alarm threshold (°C)
+  currentLimit: number;    // Current alarm threshold (A)
   gooseAppId: string;
   gooseVlan: number;
   ptpDomain: number;
