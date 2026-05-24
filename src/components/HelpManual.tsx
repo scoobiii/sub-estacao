@@ -213,6 +213,76 @@ export default function HelpManual() {
           )}
         </div>
 
+        {/* Section 5 - OpenInfra / OSM API */}
+        <div className="border border-[#262626]/40 rounded-lg overflow-hidden bg-[#050505]/40">
+          <button
+            onClick={() => toggleSection('openinfra')}
+            className="w-full text-left p-3 flex justify-between items-center font-bold text-xs text-slate-200 hover:bg-slate-900/50 cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded text-[10px] font-mono">GIS & API</span>
+              Integração de Mapas e API OpenInfra (GIS Substation Data)
+            </span>
+            <span className="text-slate-500 text-lg">{openSection === 'openinfra' ? '−' : '+'}</span>
+          </button>
+          
+          {openSection === 'openinfra' && (
+            <div className="p-3.5 border-t border-[#262626]/30 text-xs text-slate-400 space-y-3 leading-relaxed">
+              <p>
+                O ecossistema <strong>OpenInfraMap</strong> (disponível em <a href="https://openinframap.org" target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline hover:text-cyan-300">openinframap.org</a> e documentado no <a href="https://github.com/openinframap" target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline hover:text-cyan-300">GitHub</a>) é um projeto de código aberto que renderiza a rede mundial de eletricidade, telecomunicações, gasodutos e infraestruturas solares / eólicas sobre dados abertos do <strong>OpenStreetMap (OSM)</strong>.
+              </p>
+
+              <h4 className="text-slate-200 font-bold font-mono text-[11px] mt-2 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                Estrutura de Consulta Pública (Overpass QL)
+              </h4>
+              <p>
+                Para recuperar subestações de energia reais ao redor de um ponto geográfico dinâmico (com base em dados de geolocalização do navegador ou inputs manuais), o simulador usa a biblioteca nativa fetch apontando para os intérpretes do <strong>Overpass API</strong>. A linguagem de consulta estruturada (Overpass Query Language) se assemelha a:
+              </p>
+
+              <div className="bg-[#0f0f0f] border border-[#262626]/85 p-3 rounded font-mono text-[10px] text-slate-350 space-y-1 overflow-x-auto">
+                <div><span className="text-yellow-500">[out:json][timeout:15];</span></div>
+                <div>(</div>
+                <div className="pl-4">node<span className="text-cyan-400">["power"="substation"]</span>(around:<span className="text-purple-400">&#123;radius_meters&#125;</span>, <span className="text-purple-400">&#123;lat&#125;</span>, <span className="text-purple-400">&#123;lon&#125;</span>);</div>
+                <div className="pl-4">way<span className="text-cyan-400">["power"="substation"]</span>(around:<span className="text-purple-400">&#123;radius_meters&#125;</span>, <span className="text-purple-400">&#123;lat&#125;</span>, <span className="text-purple-400">&#123;lon&#125;</span>);</div>
+                <div>);</div>
+                <div><span className="text-yellow-500">out center;</span></div>
+              </div>
+
+              <h4 className="text-slate-200 font-bold font-mono text-[11px] mt-3.5 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                Tratamento de Chaves Semânticas (Tags de Alta Tensão)
+              </h4>
+              <p>
+                As concessionárias de transmissão mundiais cooperam catalogando metadados importantes nas redes reguladas. Após o retorno do objeto JSON, o simulador parseia os dados usando mapeamento condicional:
+              </p>
+
+              <ul className="space-y-1.5 pl-2 text-[11px]">
+                <li className="flex items-start gap-1">
+                  <span className="text-cyan-400 font-mono font-bold shrink-0">"power"="substation"</span>
+                  <span className="text-slate-400">— Identifica formalmente que o perímetro ou nó geométrico é uma subestação transformadora de cargas.</span>
+                </li>
+                <li className="flex items-start gap-1">
+                  <span className="text-amber-400 font-mono font-bold shrink-0">"voltage"</span>
+                  <span className="text-slate-400">— Tensão em Volts (ex: 138000 para 138 kV). No código, convertemos dividindo o valor padrão por 1000.</span>
+                </li>
+                <li className="flex items-start gap-1">
+                  <span className="text-emerald-400 font-mono font-bold shrink-0">"operator" ou "brand"</span>
+                  <span className="text-slate-400">— Determina qual concessionária regional opera o barramento físico (ex: Enel, CTEEP, Furnas, CPFL).</span>
+                </li>
+                <li className="flex items-start gap-1">
+                  <span className="text-purple-400 font-mono font-bold shrink-0">"substation"</span>
+                  <span className="text-slate-400">— Define o nível hierárquico, distinguindo barramentos de "transmission" (transmissão) e "distribution" (distribuição).</span>
+                </li>
+              </ul>
+
+              <div className="bg-[#12110c] text-amber-500 border border-amber-500/20 text-[10.5px] p-2.5 rounded mt-3 leading-relaxed">
+                <strong>Dica de Desenvolvimento:</strong> Ao comissionar novas microrredes locais usando o formulário de cadastro do módulo, você simula o envio de relatórios de telemetria SCADA de volta ao GIS operacional, expandindo a flexibilidade técnica didática do laboratório integrado!
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
 
     </div>

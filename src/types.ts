@@ -84,3 +84,16 @@ export interface ThermogramHotspot {
   failureMode: string;    // e.g. "Alta resistência de contato", "Sobrecarga de Retificação"
   status: 'NORMAL' | 'WARM' | 'CRITICAL';
 }
+
+export interface Substation {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  voltage?: string;
+  operator?: string;
+  city?: string;
+  type?: string;
+  source: 'MANUAL' | 'OPENINFRA';
+}
+

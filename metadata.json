@@ -1,6 +1,6 @@
 {
   "name": "Simulador de Automação de Subestação",
   "description": "Simulador interativo de automação e controle de subestação digital (IEC 61850) com barramento de 800 VDC, monitoramento de rede (GOOSE, SV, MMS), sincronismo de tempo e análise termográfica para capacitação técnica.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

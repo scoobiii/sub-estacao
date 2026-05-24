@@ -5,7 +5,8 @@ import {
   IEDConfig, 
   ThermogramHotspot, 
   SwitchState, 
-  SyncProtocol 
+  SyncProtocol,
+  Substation
 } from './types';
 import Header from './components/Header';
 import SingleLineDiagram from './components/SingleLineDiagram';
@@ -14,10 +15,11 @@ import ThermalView from './components/ThermalView';
 import ControlPanel from './components/ControlPanel';
 import IEDSettings from './components/IEDSettings';
 import HelpManual from './components/HelpManual';
-import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle } from 'lucide-react';
+import SubstationConfig from './components/SubstationConfig';
+import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle, Globe } from 'lucide-react';
 
 export default function App() {
-  const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL'>('OPERACAO');
+  const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL' | 'SUBESTACOES'>('OPERACAO');
 
   // 1. Core States for Substation breakers and switches
   const [breakers, setBreakers] = useState({
@@ -101,6 +103,46 @@ export default function App() {
       timeSyncMode: 'PTP',
     }
   ]);
+
+  // 5.1. Registered regional substations list
+  const [substations, setSubstations] = useState<Substation[]>([
+    {
+      id: 'sub_pirituba',
+      name: 'ET Pirituba - Enel SP',
+      lat: -23.5049,
+      lon: -46.7214,
+      voltage: '138 kV / 13.8 kV',
+      operator: 'Enel São Paulo',
+      type: 'Distribuição',
+      city: 'São Paulo (Pirituba)',
+      source: 'MANUAL'
+    },
+    {
+      id: 'sub_anhanguera',
+      name: 'SE Anhanguera - CTEEP',
+      lat: -23.4912,
+      lon: -46.7485,
+      voltage: '230 kV / 138 kV',
+      operator: 'ISA CTEEP',
+      type: 'Transmissão',
+      city: 'São Paulo (Anhanguera)',
+      source: 'MANUAL'
+    },
+    {
+      id: 'sub_lapa',
+      name: 'ET Lapa - Enel SP',
+      lat: -23.5221,
+      lon: -46.7015,
+      voltage: '138 kV',
+      operator: 'Enel São Paulo',
+      type: 'Distribuição',
+      city: 'São Paulo (Lapa)',
+      source: 'MANUAL'
+    }
+  ]);
+
+  const [selectedSubstationId, setSelectedSubstationId] = useState<string>('sub_pirituba');
+  const activeSubstation = substations.find(s => s.id === selectedSubstationId) || substations[0];
 
   // Telemetry real-time values
   const [telemetry, setTelemetry] = useState<Telemetry>({
@@ -709,12 +751,58 @@ export default function App() {
     }
   ];
 
+  const handleSelectSubstation = (id: string) => {
+    setSelectedSubstationId(id);
+    const targetSub = substations.find(s => s.id === id);
+    if (targetSub) {
+      injectPacket(
+        'MMS',
+        '192.168.10.100 (SCADA)',
+        '192.168.10.255 (Broadcast)',
+        `Conexão ativa com subestação comercial: ${targetSub.name}`,
+        { 
+          substationId: targetSub.id, 
+          name: targetSub.name, 
+          latitude: targetSub.lat, 
+          longitude: targetSub.lon, 
+          voltage: targetSub.voltage || '138 kV',
+          source: targetSub.source
+        }
+      );
+    }
+  };
+
+  const handleAddSubstation = (newSub: Substation) => {
+    setSubstations(prev => [...prev, newSub]);
+    injectPacket(
+      'MMS',
+      '192.168.10.100 (SCADA)',
+      '192.168.10.255 (Broadcast)',
+      `Nova subestação na malha operacional: ${newSub.name}`,
+      { 
+        substationId: newSub.id, 
+        name: newSub.name, 
+        latitude: newSub.lat, 
+        longitude: newSub.lon, 
+        voltage: newSub.voltage || '138 kV',
+        source: newSub.source
+      }
+    );
+  };
+
+  const handleDeleteSubstation = (id: string) => {
+    setSubstations(prev => prev.filter(s => s.id !== id));
+    if (selectedSubstationId === id) {
+      setSelectedSubstationId('sub_pirituba');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col font-sans select-none antialiased">
       
       {/* 1. Header component, including standard sync values */}
       <Header 
-        appName="Central de Automação de Subestação Digital"
+        appName={`Central de Automação: ${activeSubstation?.name || 'Subestação Digital'}`}
         timeSyncMode={timeSyncMode}
         timeSyncAccuracy={getSyncAccuracy(timeSyncMode)}
         isSyncLost={activeFault === 'Perda Sincronismo Temporal'}
@@ -762,6 +850,16 @@ export default function App() {
           }`}
         >
           <BookOpen className="h-4 w-4 text-purple-400" /> Guia Didático SENAI-SP
+        </button>
+        <button
+          onClick={() => setActiveSegment('SUBESTACOES')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
+            activeSegment === 'SUBESTACOES'
+              ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 font-bold shadow-sm shadow-indigo-500/5'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+          }`}
+        >
+          <Globe className="h-4 w-4 text-indigo-400" /> Gestão de Subestações (OpenInfra API)
         </button>
       </nav>
 
@@ -848,6 +946,19 @@ export default function App() {
         {activeSegment === 'MANUAL' && (
           <div className="w-full">
             <HelpManual />
+          </div>
+        )}
+
+        {/* VIEW SEGMENT E: Regional Substations Configuration & OpenInfra Maps API */}
+        {activeSegment === 'SUBESTACOES' && (
+          <div className="w-full">
+            <SubstationConfig
+              substations={substations}
+              selectedSubstationId={selectedSubstationId}
+              onSelectSubstation={handleSelectSubstation}
+              onAddSubstation={handleAddSubstation}
+              onDeleteSubstation={handleDeleteSubstation}
+            />
           </div>
         )}
 
