@@ -6,7 +6,8 @@ import {
   ThermogramHotspot, 
   SwitchState, 
   SyncProtocol,
-  Substation
+  Substation,
+  Operator
 } from './types';
 import Header from './components/Header';
 import SingleLineDiagram from './components/SingleLineDiagram';
@@ -17,10 +18,26 @@ import IEDSettings from './components/IEDSettings';
 import HelpManual from './components/HelpManual';
 import SubstationConfig from './components/SubstationConfig';
 import ODataOsascoDC from './components/ODataOsascoDC';
-import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle, Globe, Server } from 'lucide-react';
+import OperatorAuth from './components/OperatorAuth';
+import TwinAndMap3D from './components/TwinAndMap3D';
+import { Shield, Zap, Layers, Eye, BookOpen, AlertCircle, RefreshCw, HelpCircle, Globe, Server, Users, Sparkles } from 'lucide-react';
 
 export default function App() {
-  const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL' | 'SUBESTACOES' | 'ODATA_DC'>('OPERACAO');
+  const [activeSegment, setActiveSegment] = useState<'OPERACAO' | 'REDES' | 'TERMOGRAFIA' | 'MANUAL' | 'SUBESTACOES' | 'ODATA_DC' | 'AUTENTICACAO' | 'INTEGRADO_3D'>('OPERACAO');
+
+  // Interactive Active Operators directory states (defines the count/list and auth status)
+  const [activeOperators, setActiveOperators] = useState<Operator[]>([
+    { id: 'op3', name: 'Op. Patrícia Lima', role: 'monitoramento', registration: 'SENAI-MON-01', avatarColor: 'bg-blue-500', status: 'ATIVO', activeSince: '06:00' },
+    { id: 'op1', name: 'Eng. Adriano Santos', role: 'adm', registration: 'SENAI-ADM-01', avatarColor: 'bg-red-500', status: 'ATIVO', activeSince: '07:30' },
+    { id: 'op4', name: 'Est. Lucas Mendes', role: 'monitoramento', registration: 'SENAI-MON-02', avatarColor: 'bg-emerald-500', status: 'ATIVO', activeSince: '08:00' }
+  ]);
+
+  const [currentUser, setCurrentUser] = useState<Operator | null>(() => {
+    // Default to a monitoramento operator (Patrícia) to let users immediately see role restrictions, providing beautiful pedagogical value
+    return { id: 'op3', name: 'Op. Patrícia Lima', role: 'monitoramento', registration: 'SENAI-MON-01', avatarColor: 'bg-blue-500', status: 'ATIVO', activeSince: '06:00' };
+  });
+
+  const [unauthorizedActionAttempt, setUnauthorizedActionAttempt] = useState<string | null>(null);
 
   // GUI Theme Style state (Classic CRT SCADA vs Modern Hitachi ADMS)
   const [guiStyle, setGuiStyle] = useState<'CLASSIC_SCADA' | 'HITACHI_ADMS'>(() => {
@@ -41,7 +58,7 @@ export default function App() {
   };
 
   // Hitachi ADMS & High-Performance HMI (ISA-101) State Extensions
-  const [simulationMode, setSimulationMode] = useState<'REALITY' | 'STUDY'>('REALITY');
+  const [simulationMode, setSimulationMode] = useState<'REALITY' | 'STUDY' | 'MAINTENANCE'>('REALITY');
   const [voltageLayers, setVoltageLayers] = useState<{ hv: boolean; mv: boolean; lv: boolean }>({
     hv: true,
     mv: true,
@@ -71,6 +88,42 @@ export default function App() {
   const [odataGmgActive, setOdataGmgActive] = useState<boolean>(false);
   const [odataServerStress, setOdataServerStress] = useState<number>(60);
   const [odataHvacSetpoint, setOdataHvacSetpoint] = useState<number>(21);
+
+  // Secure operational setters
+  const handleSetLoad1Param = (val: number) => {
+    if (!checkAdminPrivilege('Ajustar Nível de Demanda da Carga Industrial #1')) return;
+    setLoad1Param(val);
+  };
+
+  const handleSetLoad2Param = (val: number) => {
+    if (!checkAdminPrivilege('Ajustar Carga Comercial Geral #2')) return;
+    setLoad2Param(val);
+  };
+
+  const handleSetSolarIrradianceParam = (val: number) => {
+    if (!checkAdminPrivilege('Ajustar Irradiação Solar em Campo FV')) return;
+    setSolarIrradianceParam(val);
+  };
+
+  const handleSetBessTargetParam = (val: number) => {
+    if (!checkAdminPrivilege('Configurar Ponto de Despacho BESS (Baterias)')) return;
+    setBessTargetParam(val);
+  };
+
+  const handleSetOdataGmgActive = (active: boolean) => {
+    if (!checkAdminPrivilege('Ativar/Sincronizar Grupo Gerador de Emergência diesel ODATA SP-01')) return;
+    setOdataGmgActive(active);
+  };
+
+  const handleSetOdataServerStress = (stress: number) => {
+    if (!checkAdminPrivilege('Ajustar Stress Computacional da Sala de Servidores ODATA')) return;
+    setOdataServerStress(stress);
+  };
+
+  const handleSetOdataHvacSetpoint = (temp: number) => {
+    if (!checkAdminPrivilege('Regular Setpoint Climatização Chillers ODATA SP-01')) return;
+    setOdataHvacSetpoint(temp);
+  };
 
   // Dynamic ODATA server load model
   const computedOdataLoadKw = useMemo(() => {
@@ -305,6 +358,81 @@ export default function App() {
     });
   };
 
+  const checkAdminPrivilege = (actionDescription: string): boolean => {
+    if (currentUser?.role !== 'adm') {
+      setUnauthorizedActionAttempt(actionDescription);
+      injectPacket(
+        'MMS',
+        'SCADA.OPERATOR_TERM',
+        'IED.SECURITY_GATEWAY',
+        `ALERTA REJEIÇÃO: Tentativa de regravação/manobra por operador '${currentUser?.name || 'CONVIDADO'}' sem nível ADM: [${actionDescription}]`,
+        { ipAddress: '192.168.10.100', attemptedRole: currentUser?.role || 'convidado', reason: 'Falta privilégio operacional (ANSI 36ACS)' },
+        true
+      );
+      setActiveSegment('AUTENTICACAO');
+      return false;
+    }
+    return true;
+  };
+
+  const handleOperatorLogin = (op: Operator) => {
+    setCurrentUser(op);
+    setUnauthorizedActionAttempt(null);
+    setActiveOperators(prev => {
+      if (prev.some(o => o.registration === op.registration)) {
+        return prev.map(o => o.registration === op.registration ? { ...o, status: 'ATIVO' } : o);
+      }
+      return [...prev, { ...op, status: 'ATIVO', activeSince: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }];
+    });
+    
+    injectPacket(
+      'MMS',
+      'SCADA.OPERATOR_TERM',
+      'SCADA.CONSOLE',
+      `SESSÃO INICIADA: Operador ${op.name} registrado com nível [${op.role.toUpperCase()}]`,
+      { operatorName: op.name, reg: op.registration, authLevel: op.role }
+    );
+  };
+
+  const handleOperatorLogout = () => {
+    if (currentUser) {
+      const opName = currentUser.name;
+      const opReg = currentUser.registration;
+      setCurrentUser(null);
+      setActiveOperators(prev => prev.map(o => o.registration === opReg ? { ...o, status: 'FOLGA' } : o));
+      
+      injectPacket(
+        'MMS',
+        'SCADA.OPERATOR_TERM',
+        'SCADA.CONSOLE',
+        `SESSÃO ENCERRADA: Operador ${opName} realizou logoff no terminal`,
+        { operatorName: opName, reg: opReg }
+      );
+    }
+  };
+
+  const handleOperatorRegister = (name: string, role: 'monitoramento' | 'adm', registration: string) => {
+    const newOp: Operator = {
+      id: `op-dyn-${Date.now()}`,
+      name,
+      role,
+      registration,
+      avatarColor: role === 'adm' ? 'bg-purple-600' : 'bg-slate-600',
+      status: 'ATIVO',
+      activeSince: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setActiveOperators(prev => [...prev, newOp]);
+    
+    injectPacket(
+      'MMS',
+      '192.168.10.100 (SCADA)',
+      'IED.SECURITY_GATEWAY',
+      `NOVO CADASTRO OPERACIONAL: ${name} cadastrado como ${role.toUpperCase()} (ID: ${registration})`,
+      { name, role, id: registration }
+    );
+  };
+
   // Populate first bunch of packets on mount
   useEffect(() => {
     // Generate initial packets
@@ -351,10 +479,14 @@ export default function App() {
 
   // Update IED configurations from Settings panel
   const handleUpdateIedConfig = (id: string, updated: Partial<IEDConfig>) => {
+    const affected = ieds.find(i => i.id === id);
+    if (!checkAdminPrivilege(`Alterar parametrização do IED: ${affected?.name || id}`)) {
+      return;
+    }
+    
     setIeds(prev => prev.map(i => i.id === id ? { ...i, ...updated } : i));
     
     // Inject packet noting the config adjustment changed via MMS / SCADA
-    const affected = ieds.find(i => i.id === id);
     if (affected) {
       injectPacket(
         'MMS',
@@ -368,14 +500,19 @@ export default function App() {
 
   // Toggling contact resistance
   const handleToggleContactResistance = (id: string) => {
+    const nameMap: Record<string, string> = {
+      rect_joint: 'Junta de Clivagem do Retificador C1',
+      bus_coupling: 'Barramento Central CC - Junção Principal',
+      bess_coupler: 'Acoplador BESS CC de Alta Corrente',
+      solar_combiner: 'Painel Combinador Solar FV',
+    };
+
+    if (!checkAdminPrivilege(`Comutar resistência térmica em: ${nameMap[id] || id}`)) {
+      return;
+    }
+
     setSimulatedFaultHotspots(prev => {
       const active = !prev[id];
-      const nameMap: Record<string, string> = {
-        rect_joint: 'Junta de Clivagem do Retificador C1',
-        bus_coupling: 'Barramento Central CC - Junção Principal',
-        bess_coupler: 'Acoplador BESS CC de Alta Corrente',
-        solar_combiner: 'Painel Combinador Solar FV',
-      };
 
       injectPacket(
         'MMS',
@@ -391,6 +528,9 @@ export default function App() {
   };
 
   const handleResetIeds = () => {
+    if (!checkAdminPrivilege('Redefinir IEDs de Proteção para Padrão de Fábrica')) {
+      return;
+    }
     setIeds([
       {
         id: 'MU_BAY1',
@@ -453,17 +593,21 @@ export default function App() {
 
   // Handle Breaker Clicks
   const handleToggleBreaker = (id: string) => {
+    const mapNames: Record<string, string> = {
+      cb_ac: 'Disjuntor Linha 138kV AC (52-1)',
+      cb_rect: 'Disjuntor de Carga do Retificador AC/DC',
+      cb_solar: 'Chave de Manobra do Distribuidor PV Solar',
+      cb_bess: 'Disjuntor Acoplamento do BESS CC',
+      cb_load1: 'Alimentador Industrial CC Carga 1',
+      cb_load2: 'Inversor CC/AC Geral Carga 2',
+    };
+
+    if (!checkAdminPrivilege(`Comutar/Manobrar disjuntor: ${mapNames[id] || id}`)) {
+      return;
+    }
+
     setBreakers(prev => {
       const nextState = prev[id as keyof typeof prev] === 'CLOSED' ? 'OPEN' : 'CLOSED';
-      const mapNames: Record<string, string> = {
-        cb_ac: 'Disjuntor Linha 138kV AC (52-1)',
-        cb_rect: 'Disjuntor de Carga do Retificador AC/DC',
-        cb_solar: 'Chave de Manobra do Distribuidor PV Solar',
-        cb_bess: 'Disjuntor Acoplamento do BESS CC',
-        cb_load1: 'Alimentador Industrial CC Carga 1',
-        cb_load2: 'Inversor CC/AC Geral Carga 2',
-      };
-
       // Emit high-speed GOOSE packet to process bus
       injectPacket(
         'GOOSE',
@@ -482,6 +626,9 @@ export default function App() {
 
   // Change Synchronism Protocol via header click or button click
   const handleChangeTimeSyncMode = (mode: SyncProtocol) => {
+    if (!checkAdminPrivilege(`Alterar protocolo de sincronismo de tempo para: ${mode}`)) {
+      return;
+    }
     setTimeSyncMode(mode);
     setIeds(prev => prev.map(i => ({ ...i, timeSyncMode: mode })));
     injectPacket(
@@ -910,6 +1057,9 @@ export default function App() {
   };
 
   const handleAddSubstation = (newSub: Substation) => {
+    if (!checkAdminPrivilege(`Adicionar nova subestação regional: ${newSub.name}`)) {
+      return;
+    }
     setSubstations(prev => [...prev, newSub]);
     injectPacket(
       'MMS',
@@ -928,6 +1078,10 @@ export default function App() {
   };
 
   const handleDeleteSubstation = (id: string) => {
+    const target = substations.find(s => s.id === id);
+    if (!checkAdminPrivilege(`Remover subestação regional: ${target?.name || id}`)) {
+      return;
+    }
     setSubstations(prev => prev.filter(s => s.id !== id));
     if (selectedSubstationId === id) {
       setSelectedSubstationId('sub_pirituba');
@@ -950,6 +1104,8 @@ export default function App() {
         onChangeGuiStyle={handleGuiStyleChange}
         simulationMode={simulationMode}
         onChangeSimulationMode={setSimulationMode}
+        currentUser={currentUser}
+        onSwitchToAuthTab={() => setActiveSegment('AUTENTICACAO')}
       />
 
       {/* 2. Responsive Multi-Segment Navigation Tab Selector */}
@@ -1049,6 +1205,25 @@ export default function App() {
           <Globe className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-indigo-400'}`} /> Gestão de Subestações (OpenInfra API)
         </button>
         <button
+          id="tab-integrado-3d"
+          onClick={() => setActiveSegment('INTEGRADO_3D')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'INTEGRADO_3D'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'INTEGRADO_3D'
+                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/30 font-bold shadow-sm shadow-purple-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
+          }`}
+        >
+          <Sparkles className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-purple-450'}`} /> Gêmeo Digital 3D & Sophia
+        </button>
+        <button
           id="tab-odata-dc"
           onClick={() => setActiveSegment('ODATA_DC')}
           className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
@@ -1066,6 +1241,25 @@ export default function App() {
           }`}
         >
           <Server className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-cyan-400'}`} /> Data Center ODATA Osasco
+        </button>
+        <button
+          id="tab-operators-auth"
+          onClick={() => setActiveSegment('AUTENTICACAO')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all ${
+            guiStyle === 'CLASSIC_SCADA'
+              ? `border-2 font-mono uppercase font-bold text-xs ${
+                  activeSegment === 'AUTENTICACAO'
+                    ? 'bg-blue-600 text-white border-t-blue-400 border-l-blue-400 border-b-blue-800 border-r-blue-800 shadow-md'
+                    : 'bg-[#212634] text-slate-400 border-t-[#3b4256] border-l-[#3b4256] border-b-[#141821] border-r-[#141821] hover:text-slate-200'
+                }`
+              : `rounded-lg border font-medium ${
+                  activeSegment === 'AUTENTICACAO'
+                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/30 font-bold shadow-sm shadow-purple-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151515] border-transparent'
+                }`
+          }`}
+        >
+          <Users className={`h-4 w-4 ${guiStyle === 'CLASSIC_SCADA' ? 'text-blue-350' : 'text-purple-450'}`} /> Controle de Acesso ({activeOperators.filter(o => o.status === 'ATIVO').length})
         </button>
       </nav>
 
@@ -1116,15 +1310,16 @@ export default function App() {
               <ControlPanel 
                 telemetry={telemetry}
                 load1Param={load1Param}
-                onSetLoad1Param={setLoad1Param}
+                onSetLoad1Param={handleSetLoad1Param}
                 load2Param={load2Param}
-                onSetLoad2Param={setLoad2Param}
+                onSetLoad2Param={handleSetLoad2Param}
                 solarIrradianceParam={solarIrradianceParam}
-                onSetSolarIrradiance={setSolarIrradianceParam}
+                onSetSolarIrradiance={handleSetSolarIrradianceParam}
                 bessTargetParam={bessTargetParam}
-                onSetBessTarget={setBessTargetParam}
+                onSetBessTarget={handleSetBessTargetParam}
                 activeFault={activeFault}
                 onSelectFault={(f) => {
+                  if (!checkAdminPrivilege(`Injetar Perturbação: ${f}`)) return;
                   setActiveFault(f);
                   // Trigger log entry in SCADA
                   injectPacket(
@@ -1132,7 +1327,7 @@ export default function App() {
                     'SCADA.OPERATOR_TERM',
                     '192.168.10.255',
                     `Injeção manual de perturbação: ${f}`,
-                    { faultSelected: f, user: 'MEX-ZehSobrinho' },
+                    { faultSelected: f, user: currentUser?.name || 'Convidado' },
                     f !== 'Nenhum'
                   );
                 }}
@@ -1213,13 +1408,51 @@ export default function App() {
               breakers={breakers}
               activeFault={activeFault}
               odataGmgActive={odataGmgActive}
-              onSetOdataGmgActive={setOdataGmgActive}
+              onSetOdataGmgActive={handleSetOdataGmgActive}
               odataServerStress={odataServerStress}
-              onSetOdataServerStress={setOdataServerStress}
+              onSetOdataServerStress={handleSetOdataServerStress}
               odataHvacSetpoint={odataHvacSetpoint}
-              onSetOdataHvacSetpoint={setOdataHvacSetpoint}
+              onSetOdataHvacSetpoint={handleSetOdataHvacSetpoint}
               gridVoltage={telemetry.gridVoltage}
               busVoltage={telemetry.bus800VdcVoltage}
+            />
+          </div>
+        )}
+
+        {/* VIEW SEGMENT H: 3D Twin & Virtual Intelligent Assistant Sophia */}
+        {activeSegment === 'INTEGRADO_3D' && (
+          <div className="w-full animate-fade-in text-center">
+            <TwinAndMap3D
+              guiStyle={guiStyle}
+              substations={substations}
+              selectedSubstationId={selectedSubstationId}
+              onSelectSubstation={handleSelectSubstation}
+              hotspots={hotspotsData}
+              simulatedFaultHotspots={simulatedFaultHotspots}
+              onToggleContactResistance={handleToggleContactResistance}
+              currentUser={currentUser}
+              activeOperators={activeOperators}
+              telemetry={telemetry}
+              odataGmgActive={odataGmgActive}
+              computedOdataLoadKw={computedOdataLoadKw}
+              simulationMode={simulationMode}
+              onChangeSimulationMode={setSimulationMode}
+            />
+          </div>
+        )}
+
+        {/* VIEW SEGMENT G: Operators and Cibersegurança Active Portal */}
+        {activeSegment === 'AUTENTICACAO' && (
+          <div className="w-full">
+            <OperatorAuth
+              guiStyle={guiStyle}
+              currentUser={currentUser}
+              activeOperators={activeOperators}
+              onLogin={handleOperatorLogin}
+              onLogout={handleOperatorLogout}
+              onRegister={handleOperatorRegister}
+              unauthorizedActionAttempt={unauthorizedActionAttempt}
+              onClearAttempt={() => setUnauthorizedActionAttempt(null)}
             />
           </div>
         )}

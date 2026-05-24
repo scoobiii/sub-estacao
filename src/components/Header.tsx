@@ -1,5 +1,5 @@
-import { Activity, Clock, ShieldAlert, Wifi, LayoutGrid, MonitorDot } from 'lucide-react';
-import { SyncProtocol } from '../types';
+import { Activity, Clock, ShieldAlert, Wifi, LayoutGrid, MonitorDot, User, ArrowRightLeft } from 'lucide-react';
+import { SyncProtocol, Operator } from '../types';
 
 interface HeaderProps {
   appName: string;
@@ -9,8 +9,10 @@ interface HeaderProps {
   systemTime: string;
   guiStyle: 'CLASSIC_SCADA' | 'HITACHI_ADMS';
   onChangeGuiStyle: (style: 'CLASSIC_SCADA' | 'HITACHI_ADMS') => void;
-  simulationMode?: 'REALITY' | 'STUDY';
-  onChangeSimulationMode?: (mode: 'REALITY' | 'STUDY') => void;
+  simulationMode?: 'REALITY' | 'STUDY' | 'MAINTENANCE';
+  onChangeSimulationMode?: (mode: 'REALITY' | 'STUDY' | 'MAINTENANCE') => void;
+  currentUser: Operator | null;
+  onSwitchToAuthTab: () => void;
 }
 
 export default function Header({
@@ -23,6 +25,8 @@ export default function Header({
   onChangeGuiStyle,
   simulationMode = 'REALITY',
   onChangeSimulationMode = () => {},
+  currentUser,
+  onSwitchToAuthTab,
 }: HeaderProps) {
   const isClassic = guiStyle === 'CLASSIC_SCADA';
 
@@ -101,7 +105,7 @@ export default function Header({
           </div>
         </div>
 
-        {/* STUDY VS. REALITY SIMULATION TOGGLE */}
+        {/* STUDY VS. REALITY VS. MAINTENANCE SIMULATION TOGGLE */}
         <div className={`p-1.5 rounded-lg flex items-center gap-2 ${
           isClassic 
             ? 'bg-[#151921] border-2 border-[#12151b] text-slate-350' 
@@ -132,6 +136,17 @@ export default function Header({
               title="Muda o HMI e os IEDs para ambiente de estudo de carga ou contingência offline"
             >
               Estudo
+            </button>
+            <button
+              onClick={() => onChangeSimulationMode('MAINTENANCE')}
+              className={`px-2 py-0.5 text-[9.5px] uppercase font-mono font-bold cursor-pointer rounded transition-all ${
+                simulationMode === 'MAINTENANCE'
+                  ? (isClassic ? 'bg-amber-600 text-white' : 'bg-amber-500 text-slate-950 font-extrabold')
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Coloca equipamentos parados em manutenção, realiza desligamento de ativos e altera parâmetros"
+            >
+              Manutenção
             </button>
           </div>
         </div>
@@ -168,10 +183,32 @@ export default function Header({
         </div>
 
         {/* User context */}
-        <div className="text-right hidden xl:block font-mono">
-          <div className="text-[10px] text-slate-450 font-bold uppercase">OP. SCADA ID</div>
-          <div className={`text-xs font-bold ${isClassic ? 'text-blue-400' : 'text-slate-300 font-sans'}`}>Zeh Sobrinho SENAI</div>
-        </div>
+        <button
+          onClick={onSwitchToAuthTab}
+          className={`text-right hidden xl:flex items-center gap-2.5 px-3 py-1 text-left rounded-lg cursor-pointer border transition-all ${
+            isClassic 
+              ? 'bg-[#151921] border-[#2f3542] hover:bg-[#212634] text-slate-350' 
+              : 'bg-[#050505] border-[#262626] hover:bg-slate-900 text-slate-100'
+          }`}
+          title="Clique para gerenciar sessões e trocar de operador"
+          id="btn-header-operator-card"
+        >
+          <div className="text-right font-mono">
+            <div className="text-[9px] text-slate-500 font-bold uppercase flex items-center justify-end gap-1">
+              Operador Ativo
+              <span className={`h-1.5 w-1.5 rounded-full ${currentUser?.role === 'adm' ? 'bg-emerald-400' : 'bg-blue-400'}`} />
+            </div>
+            <div className={`text-xs font-bold font-sans truncate ${isClassic ? 'text-blue-400 font-mono' : 'text-slate-300'}`}>
+              {currentUser ? currentUser.name : 'Nenhum (Convidado)'}
+            </div>
+            <span className={`text-[8.5px] font-mono font-bold block ${currentUser?.role === 'adm' ? 'text-emerald-400' : 'text-blue-400'}`}>
+              [{currentUser ? currentUser.role.toUpperCase() : 'MONITORAMENTO'}]
+            </span>
+          </div>
+          <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-extrabold ${currentUser ? currentUser.avatarColor : 'bg-slate-600'}`}>
+            {currentUser ? currentUser.name.charAt(4) : '?'}
+          </div>
+        </button>
       </div>
     </header>
   );

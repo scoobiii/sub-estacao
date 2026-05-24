@@ -99,3 +99,13 @@ export interface Substation {
   source: 'MANUAL' | 'OPENINFRA';
 }
 
+export interface Operator {
+  id: string;
+  name: string;
+  role: 'monitoramento' | 'adm';
+  registration: string;
+  avatarColor: string;
+  activeSince: string;
+  status: 'ATIVO' | 'AUSENTE' | 'FOLGA';
+}
+
